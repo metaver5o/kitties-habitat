@@ -22,6 +22,7 @@ function normalize(k) {
     traits,
     image: k.image_url_png || k.image_url,
     generation: k.generation,
+    cooldown: k.status?.cooldown_index ?? 0,
     color: k.color,
   };
 }

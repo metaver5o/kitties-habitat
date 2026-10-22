@@ -11,11 +11,16 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
 
-// --- renderer: drawn at 1/pixel resolution and upscaled for the retro look --
+// --- renderer --------------------------------------------------------------
+// The scene and fast kitties are drawn at full resolution. Slower kitties
+// (by CryptoKitties cooldown) are drawn into low-res targets, one per pixel
+// size, and composited on top with a glitch shader. Each target first gets a
+// depth-only pass of the scene so furniture still hides cats behind it.
 
 const canvas = $('#view');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
-renderer.setPixelRatio(1);
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.autoClear = false;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
 const controls = new OrbitControls(camera, canvas);
@@ -24,14 +29,92 @@ controls.maxPolarAngle = Math.PI * 0.47;
 controls.minDistance = 3;
 controls.maxDistance = 30;
 
-let pixel = Number(store.get('pixel')) || 3;
+const tierTargets = new Map(); // pixel size -> WebGLRenderTarget
+const tierSize = (px) => [Math.max(1, Math.floor(innerWidth / px)), Math.max(1, Math.floor(innerHeight / px))];
+function tierTarget(px) {
+  if (!tierTargets.has(px)) {
+    tierTargets.set(px, new THREE.WebGLRenderTarget(...tierSize(px), {
+      minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
+    }));
+  }
+  return tierTargets.get(px);
+}
+
 function resize() {
-  renderer.setSize(Math.max(1, Math.floor(innerWidth / pixel)), Math.max(1, Math.floor(innerHeight / pixel)), false);
+  renderer.setSize(innerWidth, innerHeight, false);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
+  for (const [px, rt] of tierTargets) rt.setSize(...tierSize(px));
 }
 addEventListener('resize', resize);
 resize();
+
+const glitchMat = new THREE.ShaderMaterial({
+  uniforms: { map: { value: null }, time: { value: 0 }, glitch: { value: 0 }, res: { value: new THREE.Vector2() } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: `
+    uniform sampler2D map; uniform float time, glitch; uniform vec2 res; varying vec2 vUv;
+    float h(float n) { return fract(sin(n) * 43758.5453); }
+    void main() {
+      vec2 uv = vUv;
+      float tick = floor(time * 12.0);
+      // short glitch bursts, more frequent the slower the cooldown
+      float burst = step(1.0 - glitch * 0.22, h(tick * 0.71));
+      float band = floor(uv.y * res.y / 3.0);
+      float tear = burst * step(0.6, h(tick * 1.7 + band * 0.13));
+      uv.x += (h(band + tick) - 0.5) * 0.04 * glitch * tear;
+      float off = burst * glitch * (1.0 + h(tick)) / res.x;
+      vec4 c = texture2D(map, uv);
+      vec4 r = texture2D(map, uv + vec2(off, 0.0));
+      vec4 b = texture2D(map, uv - vec2(off, 0.0));
+      c.r = mix(c.r, r.r, burst); c.b = mix(c.b, b.b, burst);
+      c.a = max(c.a, max(r.a, b.a) * burst);
+      c.a *= 1.0 - burst * 0.4 * step(0.7, h(tick * 3.1));
+      c.rgb *= 1.0 - glitch * 0.15 * mod(floor(gl_FragCoord.y / 2.0), 2.0);
+      gl_FragColor = c;
+      #include <colorspace_fragment>
+    }`,
+  transparent: true, depthTest: false, depthWrite: false,
+});
+const quadScene = new THREE.Scene();
+quadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), glitchMat));
+const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
+
+function render(t) {
+  // scene + fast kitties (layer 1), straight to the canvas
+  renderer.setRenderTarget(null);
+  renderer.clear();
+  camera.layers.set(0);
+  camera.layers.enable(1);
+  renderer.render(scene, camera);
+
+  const bg = scene.background;
+  scene.background = null;
+  const tiers = new Map();
+  for (const k of world.kitties) if (k.cd.px > 1) tiers.set(k.cd.px, Math.max(tiers.get(k.cd.px) || 0, k.cd.glitch));
+  for (const [px, glitch] of [...tiers].sort((a, b) => a[0] - b[0])) {
+    const rt = tierTarget(px);
+    renderer.setRenderTarget(rt);
+    renderer.setClearColor(0x000000, 0);
+    renderer.clear();
+    scene.overrideMaterial = depthOnly;
+    camera.layers.set(0);
+    renderer.render(scene, camera);
+    scene.overrideMaterial = null;
+    camera.layers.set(px);
+    renderer.render(scene, camera);
+
+    renderer.setRenderTarget(null);
+    glitchMat.uniforms.map.value = rt.texture;
+    glitchMat.uniforms.glitch.value = glitch;
+    glitchMat.uniforms.time.value = t;
+    glitchMat.uniforms.res.value.set(rt.width, rt.height);
+    renderer.render(quadScene, quadCam);
+  }
+  scene.background = bg;
+  camera.layers.set(0);
+}
 
 // --- world -----------------------------------------------------------------
 
@@ -98,6 +181,7 @@ function setScene(key) {
   }
   const env = SCENES[key].build();
   world.env = env;
+  env.group.traverse((o) => o.isLight && o.layers.enableAll());
   scene.add(env.group);
   scene.background = new THREE.Color(env.bg);
   scene.fog = env.fog ? new THREE.Fog(...env.fog) : null;
@@ -127,11 +211,9 @@ for (const [key, s] of Object.entries(SCENES)) {
 
 function syncToggles() {
   $('#sound').textContent = audio.enabled ? 'Sound: on' : 'Sound: off';
-  $('#pixel').textContent = `Pixels: ${pixel}x`;
   $('#names').textContent = labels.classList.contains('hide-names') ? 'Names: off' : 'Names: on';
 }
 $('#sound').onclick = () => { audio.enabled = !audio.enabled; store.set('sound', audio.enabled ? '1' : '0'); syncToggles(); };
-$('#pixel').onclick = () => { pixel = (pixel % 4) + 1; store.set('pixel', pixel); resize(); syncToggles(); };
 $('#names').onclick = () => { labels.classList.toggle('hide-names'); syncToggles(); };
 audio.enabled = store.get('sound') !== '0';
 syncToggles();
@@ -169,8 +251,8 @@ function addKitty(data) {
   info.innerHTML = '<b></b><small></small>';
   info.querySelector('b').textContent = data.name;
   info.querySelector('small').textContent = data.fancy
-    ? `#${data.id} · fancy · gen ${data.generation}`
-    : `#${data.id} · ${t.body || '?'} · ${t.pattern || '?'} · ${t.eyes || '?'}`;
+    ? `#${data.id} · ${k.cd.name} · fancy · gen ${data.generation}`
+    : `#${data.id} · ${k.cd.name} · ${t.body || '?'} · ${t.pattern || '?'} · ${t.eyes || '?'}`;
   li.append(img, info);
   li.onclick = () => {
     controls.target.set(k.root.position.x, 0.6, k.root.position.z);
@@ -241,6 +323,7 @@ window.ethereum?.on?.('accountsChanged', (accts) => setAccount(accts[0]));
 
 // click a kitty to make it meow (ignore drags)
 const ray = new THREE.Raycaster();
+ray.layers.enableAll(); // kitties live on per-cooldown layers
 let down = null;
 canvas.addEventListener('pointerdown', (e) => (down = [e.clientX, e.clientY]));
 canvas.addEventListener('pointerup', (e) => {
@@ -262,7 +345,7 @@ function frame() {
   for (const k of world.kitties) k.update(dt, world);
   world.resolve();
   controls.update();
-  renderer.render(scene, camera);
+  render(t);
 
   for (const k of world.kitties) {
     k.head.getWorldPosition(v);

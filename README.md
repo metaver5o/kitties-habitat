@@ -2,7 +2,7 @@
 
 # 🐾 Kitty Habitat
 
-**Your CryptoKitties, alive in retro low-poly 3D.**
+**Your CryptoKitties, alive in low-poly 3D. Fast cats crisp, slow cats glitched.**
 
 Connect your wallet and every kitty you own moves into a little world of its own:
 it walks around, sits, naps, gets the zoomies and meows with real cat voices.
@@ -27,15 +27,36 @@ it walks around, sits, naps, gets the zoomies and meows with real cat voices.
 - **They behave like cats.** They wander, avoid furniture and each other, sit, curl up to sleep (`zZz`), hop, and get the occasional zoomies.
 - **Real meows.** Each kitty has its own set of real cat recordings and its own pitch. Click a kitty, or its card in the roster, to make it meow, or to wake it up.
 - **Four scenes.** Home, office, garden and beach, each with props the cats walk around (sofa, desks, a pond they won't step into, sandcastles).
-- **Retro by design.** Flat-shaded low-poly, rendered at low resolution and upscaled pixel-perfect. Choose 1×–4× pixel size.
+- **Cooldown decides quality.** Fast kitties render crisp and smooth. Slow ones turn chunky, pixelated, glitchy and sluggish (see [Cooldown settings](#cooldown-settings)).
+
+## Cooldown settings
+
+Every CryptoKitty has an on-chain breeding cooldown (`cooldown_index`, 0–13). Kitty Habitat uses it to decide how each cat is drawn and how it moves. The fastest cats get the best quality. The slowest are rendered like a corrupted old video tape.
+
+![Kitties sorted by cooldown, from crisp to glitched](docs/lineup.jpg)
+
+<sub>Sorted fastest → slowest. The five Swift cats are full-resolution and anti-aliased, Snappy and Brisk start to go blocky, Slow and Sluggish are chunky pixels with glitch bursts.</sub>
+
+| Index | Cooldown | Pixel size | Glitch | Walk speed | Animation | Mesh detail |
+|---|---|---|---|---|---|---|
+| 0 | Fast | 1× (native, anti-aliased) | none | 100% | every frame | high |
+| 1–2 | Swift | 1× (native, anti-aliased) | none | 95–91% | every frame | high |
+| 3–4 | Snappy | 2× | none | 86–82% | 30 → 28 fps | low-poly |
+| 5–6 | Brisk | 3× | none | 77–72% | 25 → 23 fps | low-poly |
+| 7–8 | Plodding | 4× | 14–29% | 68–63% | 20 → 18 fps | low-poly |
+| 9–10 | Slow | 5× | 43–57% | 58–54% | 16 → 13 fps | low-poly |
+| 11–12 | Sluggish | 6× | 71–86% | 49–45% | 11 → 8 fps | low-poly |
+| 13 | Catatonic | 8× | 100% | 40% | 6 fps | low-poly |
+
+- **Pixel size**: the cat is rendered into an offscreen target at `1/N` of the screen resolution and scaled back up with nearest-neighbour filtering. The scene itself is always full resolution.
+- **Glitch**: random bursts of horizontal tearing, red/blue channel split and flicker, plus constant scanlines. Higher glitch means more frequent and stronger bursts.
+- **Walk speed / animation**: slow cats walk slower, and their whole update (position, legs, tail, blinking) only advances a few times per second, which reads as choppy stop-motion.
+- Occlusion still works: each pixel tier first renders a depth-only copy of the scene, so the sofa still hides a glitchy cat behind it.
+- Tuning lives in `cooldownProfile()` in [`src/cat.js`](src/cat.js) (`PIXELS`, glitch, tempo, stepDt, detail).
 
 ## Your traits, in 3D
 
 Each cattribute maps to something on the model:
-
-![Nine kitties built from their own traits](docs/lineup.jpg)
-
-<sub>Left to right: Fuku Bluntnano (cymric · calicool · crazy eyes · tongue), #377769 (ragdoll · curly tail), #372075 (cymric · googly), #369860 (laperm · luckystripe · thicccbrowz), #353297 (ragamuffin · gerbil teeth), DuCat (fancy, with wings), #326465, #169128 (himalayan · curly tail), #45657 (simple eyes).</sub>
 
 | Trait | What it changes |
 |---|---|
@@ -72,7 +93,9 @@ cat.js  traits ─► low-poly model (body, head, ears, eyes, mouth, legs, tail 
    ▼
 scene.js  floor bounds + furniture boxes ─► walking, collision, state machine
    ▼
-three.js at 1/N resolution ─► CSS `image-rendering: pixelated`
+renderer  scene + fast kitties at full resolution (MSAA)
+          per cooldown tier: depth-only scene + tier's kitties → 1/N render target
+          └─ composited on top through the glitch shader
 ```
 
 - **Why the API and not the contract?** `KittyCore.tokensOfOwner()` loops over all ~2M kitties and runs out of gas on public RPCs, and CryptoKitties' `Transfer` event has no indexed fields to filter on. The public CryptoKitties API answers in one request and needs no key.
@@ -98,8 +121,8 @@ Production is GitHub Pages serving the `main` branch over HTTPS, with no CI buil
 | Path | What |
 |---|---|
 | `index.html` | Page, HUD, styles, import map (three.js from jsDelivr) |
-| `src/main.js` | Renderer, wallet connection, world loop, collisions, labels |
-| `src/cat.js` | Trait → 3D model, and the walk / sit / sleep / hop / zoomies / meow behavior |
+| `src/main.js` | Tiered renderer and glitch shader, wallet connection, world loop, collisions, labels |
+| `src/cat.js` | Trait → 3D model, cooldown profiles, and the walk / sit / sleep / hop / zoomies / meow behavior |
 | `src/scenes.js` | Home, office, garden and beach, plus their obstacles |
 | `src/colors.js` | CryptoKitties color gene → hex |
 | `src/api.js` | CryptoKitties API client, palette sampling for fancy cats |

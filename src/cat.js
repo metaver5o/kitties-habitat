@@ -28,6 +28,27 @@ const EYES = {
 const WHITE = new THREE.Color('#ffffff');
 const DARK = '#2b2c36';
 const PINK = '#f29cb1';
+// CryptoKitties cooldown_index 0..13 -> how the cat is drawn and moves.
+// Fast cats get full resolution + smooth geometry; slow ones get chunky pixels,
+// glitches, slower walking and stop-motion animation.
+const COOLDOWNS = ['Fast', 'Swift', 'Swift', 'Snappy', 'Snappy', 'Brisk', 'Brisk',
+  'Plodding', 'Plodding', 'Slow', 'Slow', 'Sluggish', 'Sluggish', 'Catatonic'];
+const PIXELS = [1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 8];
+
+export function cooldownProfile(index) {
+  const i = Math.max(0, Math.min(13, index | 0));
+  const slow = i / 13;
+  return {
+    index: i,
+    name: COOLDOWNS[i],
+    px: PIXELS[i], // also the render layer the cat lives on
+    glitch: i < 7 ? 0 : (i - 6) / 7,
+    tempo: 1 - slow * 0.6, // walking speed multiplier
+    stepDt: i < 3 ? 0 : 1 / (30 - (i - 3) * 2.4), // stop-motion: 30 fps down to ~6 fps
+    detail: i < 3 ? 2 : 1, // icosphere subdivisions for body and head
+  };
+}
+
 const SAYINGS = ['Miau!', 'Miaau~', 'Mrrp?', 'Meow!', 'Nyaa~', 'Mew!', 'Mrrrow', 'Miau miau'];
 
 function patternKind(name) {
@@ -74,7 +95,7 @@ function buildLeg(parent, x, y, z, P) {
   return pivot;
 }
 
-function buildModel(t, R) {
+function buildModel(t, R, detail) {
   const P = colorFor(t.colorprimary, 'primary');
   const S = colorFor(t.colorsecondary, 'secondary');
   const T = colorFor(t.colortertiary, 'tertiary');
@@ -94,7 +115,7 @@ function buildModel(t, R) {
 
   // body: belly/chest in tertiary, pattern on the rest
   const bs = new THREE.Vector3(0.85, 0.8, 1.2);
-  const bodyGeo = painted(new THREE.IcosahedronGeometry(0.4, 1).scale(bs.x, bs.y, bs.z), (m) => {
+  const bodyGeo = painted(new THREE.IcosahedronGeometry(0.4, detail).scale(bs.x, bs.y, bs.z), (m) => {
     const d = m.clone().divide(bs).normalize();
     if ((d.z > 0.45 && d.y < 0.55 && Math.abs(d.x) < 0.55) || d.y < -0.6) return T;
     return pattern(d, 'body');
@@ -109,7 +130,7 @@ function buildModel(t, R) {
   torso.add(head);
   const hs = new THREE.Vector3(1.12, 0.92, 0.95);
   head.add(new THREE.Mesh(
-    painted(new THREE.IcosahedronGeometry(0.36, 1).scale(hs.x, hs.y, hs.z), (m) => pattern(m.clone().divide(hs).normalize(), 'head')),
+    painted(new THREE.IcosahedronGeometry(0.36, detail).scale(hs.x, hs.y, hs.z), (m) => pattern(m.clone().divide(hs).normalize(), 'head')),
     skin));
   put(head, new THREE.IcosahedronGeometry(0.12, 1).scale(1.5, 0.85, 0.8), P.clone().lerp(WHITE, 0.35), 0, -0.12, 0.27);
 
@@ -247,7 +268,10 @@ export class Kitty {
   constructor(data) {
     this.data = data;
     const R = rng(data.id * 2654435761);
-    Object.assign(this, buildModel(data.traits, R));
+    this.cd = cooldownProfile(data.cooldown);
+    Object.assign(this, buildModel(data.traits, R, this.cd.detail));
+    this.root.traverse((o) => o.layers.set(this.cd.px));
+    this.acc = 0;
     this.root.traverse((o) => (o.userData.kitty = this));
     // each kitty has its own handful of recordings and a slight pitch offset
     const first = Math.floor(R() * 12);
@@ -308,7 +332,7 @@ export class Kitty {
     switch (state) {
       case 'walk':
       case 'zoomies': {
-        this.speed = state === 'zoomies' ? 2.3 : 0.6 + Math.random() * 0.3;
+        this.speed = (state === 'zoomies' ? 2.3 : 0.6 + Math.random() * 0.3) * this.cd.tempo;
         this.target = world.randomSpot();
         const p = this.root.position;
         this.timer = state === 'zoomies' ? 4 + Math.random() * 3
@@ -350,6 +374,11 @@ export class Kitty {
   }
 
   update(dt, world) {
+    // slow cats only advance in coarse steps, which reads as choppy motion
+    this.acc += dt;
+    if (this.acc < this.cd.stepDt) return;
+    dt = this.acc;
+    this.acc = 0;
     this.t += dt;
     this.timer -= dt;
     if (this.timer <= 0) this.nextState(world);

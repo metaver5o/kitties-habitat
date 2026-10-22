@@ -17,7 +17,7 @@
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; overflow: hidden; background: #1d1b26; color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
-    #view { position: fixed; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; display: block; touch-action: none; }
+    #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
     #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
     .tag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; will-change: transform; }
     .tag .name { font: 8px var(--pixel); color: #fff; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; white-space: nowrap; }
@@ -80,11 +80,10 @@
     <div id="scenes" class="row"></div>
     <div class="row">
       <button id="sound" type="button"></button>
-      <button id="pixel" type="button"></button>
       <button id="names" type="button"></button>
     </div>
     <div id="status"></div>
-    <div class="hint">Drag to orbit · scroll to zoom · click a kitty to make it meow</div>
+    <div class="hint">Drag to orbit · scroll to zoom · click a kitty to make it meow<br>Fast-cooldown kitties render crisp; slow ones get pixelated, glitchy and sluggish.</div>
   </div>
   <ul id="roster" class="panel"></ul>
   <footer>
