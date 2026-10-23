@@ -19,6 +19,7 @@ function normalize(k) {
     id: k.id,
     name: k.name || (k.is_fancy && k.fancy_type) || `Kitty #${k.id}`,
     fancy: k.is_fancy ? k.fancy_type : null,
+    prestige: k.is_prestige ? k.prestige_type : null,
     traits,
     image: k.image_url_png || k.image_url,
     generation: k.generation,
