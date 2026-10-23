@@ -25,7 +25,10 @@ it walks around, sits, naps, gets the zoomies and meows with real cat voices.
 - **Wallet-gated.** Nothing shows until you connect a browser wallet (MetaMask or similar). Then that account's kitties load into the scene. Switch accounts and the cats switch too. Disconnect and they leave.
 - **Every cat is unique.** No sprites or stock models. Each kitty is built in 3D from its own traits, so two wallets never look the same.
 - **They behave like cats.** They wander, avoid furniture and each other, sit, curl up to sleep (`zZz`), hop, and get the occasional zoomies.
+- **They climb furniture.** Kitties walk up to the sofa, coffee table, office desks (right in front of the keyboard) and chairs, the beanbag, the garden bench and rocks, the sandcastle and the beach cooler, jump up, sit or nap there for a while, then hop back down. Each surface has room for a set number of cats.
 - **Real meows.** Each kitty has its own set of real cat recordings and its own pitch. Click a kitty, or its card in the roster, to make it meow, or to wake it up.
+- **Petting.** Press and hold on a kitty to pet it: it sits still, squints, tilts its head into your hand and purrs (a real recorded purr, pitched to its voice).
+- **Toys.** Each scene has a ball (yarn at home and in the garden, a paper ball in the office, a beach ball at the beach). Kitties chase it and bat it around on their own. Click the ball to throw it and the nearest kitties give chase.
 - **Four scenes.** Home, office, garden and beach, each with props the cats walk around (sofa, desks, a pond they won't step into, sandcastles).
 - **Day and night.** `Time: auto` follows your local clock: the sun and moon cross the sky, windows go dark, lamps come on, stars and garden fireflies come out, and kitties nap more at night. `day` / `night` pin it, `cycle` plays a whole day in 3 minutes.
 - **Cooldown decides quality.** Fast kitties render crisp and smooth. Slow ones turn chunky, pixelated, glitchy and sluggish (see [Cooldown settings](#cooldown-settings)).
@@ -70,7 +73,11 @@ Each cattribute maps to something on the model:
 | `eyes` | **googly** big eyes · **crazy** pupils looking different ways · **thicccbrowz** heavy brows · **simple** small dots · **wiley / sleepy** half-closed lids |
 | `mouth` | **tongue** sticks out · **gerbil** buck teeth · **soserious** flat line · default `w` smile |
 
-**Fancy cats** (DuCat, etc.) have no cattributes, so their palette is sampled from their official artwork. DuCats also get little wings.
+All 124 color genes (31 each for fur, pattern, belly and eyes) use the exact hex values from the official kitty SVGs.
+
+**Fancy cats** have no cattributes, so their palette is sampled from their official artwork, and the ones with signature gear wear it: DuCat wings, knights' shields and swords (Gwendolion, Page, Purrzival, Pawderick), wizard staffs (CatFrost, Catseye), pirate hats (Dart, Bartholomeow), Janis' sunglasses, Harriet's bunny ears, Tarun's beak, and a soccer ball for the football squad (Keeper, Striker, Sweeper, Winger). Fancy types not on that list get the palette only.
+
+**Prestige kitties** wear their item: viking helmets (centurion, dominator, explorer, purrior), shields (aegis, centurion, velite), swords (purrior, guard), crowns (meowfool, meowfoolest, meownificent, meownique), bat wings (meowfool, meowfoolest, meowthulhu), antlers (holidaycheer, reindeer, lit, plus a red nose), gem collars (bionic, catterypack, driver), mummy wraps (thatsawrap), a duck beak (duckduckcat), a bowler hat (dreamcloud) and a staff (scout). The mapping lives in `PRESTIGE` / `FANCY` in [`src/cat.js`](src/cat.js).
 
 ## Scenes
 
@@ -122,25 +129,23 @@ Production is GitHub Pages serving the `main` branch over HTTPS, with no CI buil
 | Path | What |
 |---|---|
 | `index.html` | Page, HUD, styles, import map (three.js from jsDelivr) |
-| `src/main.js` | Tiered renderer and glitch shader, time of day, wallet connection, world loop, collisions, labels |
-| `src/cat.js` | Trait → 3D model, cooldown profiles, and the walk / sit / sleep / hop / zoomies / meow behavior |
-| `src/scenes.js` | Home, office, garden and beach, plus their obstacles and day/night hooks (lights, windows, lamps, sun/moon, stars) |
-| `src/colors.js` | CryptoKitties color gene → hex |
+| `src/main.js` | Tiered renderer and glitch shader, time of day, wallet connection, world loop, collisions, ball physics, petting input, labels |
+| `src/cat.js` | Trait → 3D model, prestige / fancy accessories, cooldown profiles, and the walk / sit / sleep / hop / zoomies / jump / perch / chase / pet / meow behavior |
+| `src/scenes.js` | Home, office, garden and beach, plus their obstacles, perches and day/night hooks (lights, windows, lamps, sun/moon, stars) |
+| `src/colors.js` | All 124 CryptoKitties color genes → hex |
 | `src/api.js` | CryptoKitties API client, palette sampling for fancy cats |
-| `src/audio.js` | Meow playback (WebAudio, per-cat clips, pitch and stereo pan) |
-| `sounds/` | 12 real meows, public domain / CC0 ([credits](sounds/CREDITS.md)) |
+| `src/audio.js` | Meow and purr playback (WebAudio, per-cat clips, pitch and stereo pan) |
+| `sounds/` | 12 real meows and a purr, public domain / CC0 ([credits](sounds/CREDITS.md)) |
 
 ## Ideas and contributions
 
 PRs welcome. Some things that would be fun:
 
-- Jumping onto furniture (sofa, desks, sandcastle)
-- Chasing the yarn ball and beach ball, and petting to purr
-- More fancy-cat accessories and more accurate color genes (the table in `src/colors.js` is partly approximate)
+- Accessories for more fancy types and the remaining prestige items (hooks, peg legs, boats, islands)
 
 ## Credits and legal
 
 - Code © 2026 Marco Matos, [MIT](LICENSE).
 - **CryptoKitties, the CryptoKitties name, logo and artwork are property of Dapper Labs, Inc.** This is an unofficial fan project, not affiliated with or endorsed by Dapper Labs. No CryptoKitties artwork is stored in this repo. The 3D cats are original models driven by trait data, and the roster thumbnails load from the CryptoKitties image CDN.
-- Meow recordings: real cats, public domain / CC0, from Wikimedia Commons. See [sounds/CREDITS.md](sounds/CREDITS.md).
+- Meow and purr recordings: real cats, public domain / CC0, from Wikimedia Commons. See [sounds/CREDITS.md](sounds/CREDITS.md).
 - Built with [three.js](https://threejs.org/).

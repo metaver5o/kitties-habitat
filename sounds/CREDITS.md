@@ -1,4 +1,4 @@
-# Meow recordings
+# Cat recordings
 
 All clips are real cats, trimmed and loudness-normalized from these Wikimedia Commons files.
 None require attribution; credits are given anyway.
@@ -10,3 +10,4 @@ None require attribution; credits are given anyway.
 | meow-07 – meow-10 | [Meow of a pleading cat.oga](https://commons.wikimedia.org/wiki/File:Meow_of_a_pleading_cat.oga) | Heismark | Public domain |
 | meow-11 | [Meow of a Siamese cat - freemaster2.wav](https://commons.wikimedia.org/wiki/File:Meow_of_a_Siamese_cat_-_freemaster2.wav) | freemaster2 | CC0 |
 | meow-12 | [Maullido de gata hembra joven.ogg](https://commons.wikimedia.org/wiki/File:Maullido_de_gata_hembra_joven.ogg) | George Miquilena | CC0 |
+| purr | [Purr (10 sec loopable).ogg](https://commons.wikimedia.org/wiki/File:Purr_(10_sec_loopable).ogg) | Insanejeff | Public domain |
