@@ -49,6 +49,131 @@ export function cooldownProfile(index) {
   };
 }
 
+// --- accessories --------------------------------------------------------------
+// Low-poly versions of the CryptoKitties prestige items (and some fancy cats'
+// signature gear). Each builder gets the head, torso and base groups.
+
+const METAL = '#a7adb7', GOLD = '#f5c542', WOOD = '#7a4a2a', HORN = '#efe6d2';
+
+const ACC = {
+  helmet(head) {
+    const h = put(head, new THREE.SphereGeometry(0.4, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), METAL, 0, 0.1, -0.02);
+    h.scale.set(1.05, 0.75, 1);
+    put(head, new THREE.TorusGeometry(0.41, 0.03, 4, 10).rotateX(Math.PI / 2), '#7b818b', 0, 0.1, -0.02).scale.z = 0.97;
+    for (const s of [-1, 1]) {
+      const horn = put(head, new THREE.ConeGeometry(0.07, 0.36, 5), HORN, s * 0.42, 0.32, -0.02);
+      horn.rotation.z = -s * 0.7;
+    }
+  },
+  crown(head) {
+    put(head, new THREE.CylinderGeometry(0.17, 0.19, 0.1, 8, 1, true),
+      new THREE.MeshPhongMaterial({ color: GOLD, flatShading: true, side: THREE.DoubleSide }), 0, 0.45, 0.05);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      put(head, new THREE.ConeGeometry(0.04, 0.12, 4), GOLD, Math.sin(a) * 0.17, 0.55, 0.05 + Math.cos(a) * 0.17);
+    }
+    put(head, new THREE.IcosahedronGeometry(0.04, 0), '#e0457b', 0, 0.46, 0.24);
+  },
+  antlers(head) {
+    for (const s of [-1, 1]) {
+      const a = new THREE.Group();
+      a.position.set(s * 0.17, 0.36, -0.05);
+      a.rotation.z = -s * 0.35;
+      head.add(a);
+      put(a, new THREE.CylinderGeometry(0.025, 0.035, 0.5, 4), '#8a5a35', 0, 0.25, 0);
+      for (const [y, r] of [[0.2, 0.9], [0.36, -0.8], [0.44, 0.7]]) {
+        put(a, new THREE.CylinderGeometry(0.018, 0.022, 0.2, 4), '#8a5a35', s * Math.sign(r) * 0.07, y + 0.06, 0).rotation.z = -s * r;
+      }
+    }
+  },
+  rednose(head) {
+    put(head, new THREE.IcosahedronGeometry(0.055, 1), '#ff2a3d', 0, -0.05, 0.37);
+  },
+  shield(head, torso) {
+    const sh = put(torso, new THREE.CylinderGeometry(0.26, 0.26, 0.05, 10), WOOD, -0.42, 0.25, 0.45);
+    sh.rotation.z = Math.PI / 2;
+    put(torso, new THREE.IcosahedronGeometry(0.07, 0), METAL, -0.46, 0.25, 0.45);
+  },
+  sword(head, torso) {
+    put(torso, B(0.04, 0.7, 0.12), '#d6e6f2', 0.32, 0.2, 0.82);
+    put(torso, B(0.05, 0.05, 0.28), '#c9a227', 0.32, 0.57, 0.82);
+    put(torso, B(0.05, 0.18, 0.05), '#6b4a2b', 0.32, 0.68, 0.82);
+  },
+  gemcollar(head, torso) {
+    put(torso, new THREE.TorusGeometry(0.31, 0.04, 4, 10), METAL, 0, 0.18, 0.58).scale.y = 0.9;
+    put(torso, new THREE.IcosahedronGeometry(0.09, 0), '#ff4fb4', 0, 0.12, 0.8);
+  },
+  mummy(head, torso) {
+    for (const [z, r, rx] of [[-0.05, 0.3, 0.2], [0.2, 0.36, -0.15], [0.45, 0.36, 0.25], [0.65, 0.3, -0.1]]) {
+      const ring = put(torso, new THREE.TorusGeometry(r, 0.06, 3, 10), '#ece4cf', 0, 0.18, z);
+      ring.scale.set(1, 0.95, 1);
+      ring.rotation.x = rx;
+    }
+    for (const [y, rx] of [[0.12, 0.15], [-0.05, -0.2]]) {
+      const ring = put(head, new THREE.TorusGeometry(0.37, 0.05, 3, 10).rotateX(Math.PI / 2), '#ece4cf', 0, y, 0);
+      ring.scale.set(1.12, 1, 0.97);
+      ring.rotation.x = rx;
+    }
+  },
+  beak(head) {
+    put(head, B(0.26, 0.05, 0.2), '#f5a623', 0, -0.1, 0.38);
+    put(head, B(0.22, 0.04, 0.16), '#e08e12', 0, -0.15, 0.36);
+  },
+  bowler(head) {
+    put(head, new THREE.CylinderGeometry(0.26, 0.26, 0.02, 10), '#5a4636', 0, 0.36, -0.02);
+    put(head, new THREE.SphereGeometry(0.16, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), '#5a4636', 0, 0.36, -0.02).scale.y = 0.9;
+  },
+  shades(head) {
+    for (const s of [-1, 1]) put(head, B(0.2, 0.11, 0.03), '#1d1d26', s * 0.14, 0.05, 0.37);
+    put(head, B(0.1, 0.025, 0.02), '#1d1d26', 0, 0.08, 0.38);
+  },
+  bunnyears(head) {
+    for (const s of [-1, 1]) {
+      const ear = put(head, new THREE.IcosahedronGeometry(0.1, 0).scale(0.8, 2.6, 0.5), '#f6e7ee', s * 0.13, 0.6, -0.04);
+      ear.rotation.z = -s * 0.15;
+      put(head, new THREE.IcosahedronGeometry(0.06, 0).scale(0.8, 2.6, 0.4), PINK, s * 0.135, 0.6, 0.0).rotation.z = -s * 0.15;
+    }
+  },
+  piratehat(head) {
+    put(head, new THREE.CylinderGeometry(0.46, 0.46, 0.04, 10), '#2b2a33', 0, 0.36, 0).scale.z = 0.6;
+    put(head, B(0.42, 0.2, 0.28), '#2b2a33', 0, 0.47, -0.02);
+    put(head, new THREE.IcosahedronGeometry(0.045, 0), '#ffffff', 0, 0.47, 0.13);
+  },
+  soccerball(head, torso, base) {
+    const bw = [new THREE.Color('#ffffff'), new THREE.Color('#1d1d26')];
+    const ball = new THREE.Mesh(painted(new THREE.IcosahedronGeometry(0.13, 1), (m) => bw[Math.abs(m.y) > 0.1 || Math.abs(m.x) > 0.11 ? 1 : 0]), vcMat());
+    ball.position.set(0.28, 0.13, 1.05);
+    base.add(ball);
+  },
+  staff(head, torso) {
+    put(torso, new THREE.CylinderGeometry(0.025, 0.025, 1.1, 5), '#8a5a35', 0.42, 0.55, 0.6);
+    put(torso, new THREE.IcosahedronGeometry(0.08, 0), '#c0392b', 0.42, 1.12, 0.6);
+  },
+};
+
+// prestige_type -> accessories (+ bat wings), matching the official art
+const PRESTIGE = {
+  aegis: ['shield'], velite: ['shield'], centurion: ['helmet', 'shield'], dominator: ['helmet'], explorer: ['helmet'],
+  purrior: ['helmet', 'sword'], guard: ['sword'],
+  meowfool: ['crown', 'batwings'], meowfoolest: ['crown', 'batwings'], meownificent: ['crown'], meownique: ['crown'],
+  meowthulhu: ['batwings'],
+  holidaycheer: ['antlers'], reindeer: ['antlers'], lit: ['antlers', 'rednose'],
+  bionic: ['gemcollar'], catterypack: ['gemcollar'], driver: ['gemcollar'],
+  thatsawrap: ['mummy'], duckduckcat: ['beak'], dreamcloud: ['bowler'], scout: ['staff'],
+};
+
+// fancy_type -> accessories, from the fancy cats' official art
+const FANCY = {
+  Gwendolion: ['shield', 'sword'], Page: ['shield', 'sword'], Purrzival: ['shield', 'sword'], Pawderick: ['shield', 'staff'],
+  CatFrost: ['staff'], Catseye: ['staff'], Dart: ['piratehat'], Bartholomeow: ['piratehat'],
+  Janis: ['shades'], Harriet: ['bunnyears'], Tarun: ['beak'],
+  Keeper: ['soccerball'], Striker: ['soccerball'], Sweeper: ['soccerball'], Winger: ['soccerball'],
+};
+
+export function accessoriesFor(data) {
+  return [...(PRESTIGE[data.prestige] || []), ...(FANCY[data.fancy] || [])];
+}
+
 const SAYINGS = ['Miau!', 'Miaau~', 'Mrrp?', 'Meow!', 'Nyaa~', 'Mew!', 'Mrrrow', 'Miau miau'];
 const BATS = ['Mrrp!', '*bat*', 'Nya!', '*pounce*'];
 
@@ -237,13 +362,17 @@ function buildModel(t, R, detail) {
     parent = seg;
   }
 
-  // DuCat & friends: little wings
+  // DuCat & friends: little wings; bat wings for some prestige cats
+  const acc = t.accessories || [];
+  for (const a of acc) ACC[a]?.(head, torso, base);
+  const wingColor = acc.includes('batwings') ? '#3a3a48' : t.wings;
+  const ws = acc.includes('batwings') ? 1.7 : 1;
   const wings = [];
-  if (t.wings) {
+  if (wingColor) {
     for (const s of [-1, 1]) {
       const pivot = new THREE.Group();
       pivot.position.set(0.3 * s, 0.32, 0.25);
-      const w = put(pivot, new THREE.ConeGeometry(0.16, 0.5, 3), t.wings, 0, 0.25, 0);
+      const w = put(pivot, new THREE.ConeGeometry(0.16 * ws, 0.5 * ws, 3), wingColor, 0, 0.25 * ws, 0);
       w.scale.z = 0.35;
       torso.add(pivot);
       wings.push(pivot);
@@ -281,7 +410,7 @@ export class Kitty {
     this.data = data;
     const R = rng(data.id * 2654435761);
     this.cd = cooldownProfile(data.cooldown);
-    Object.assign(this, buildModel(data.traits, R, this.cd.detail));
+    Object.assign(this, buildModel({ ...data.traits, accessories: accessoriesFor(data) }, R, this.cd.detail));
     this.root.traverse((o) => o.layers.set(this.cd.px));
     this.acc = 0;
     this.root.traverse((o) => (o.userData.kitty = this));

@@ -73,7 +73,11 @@ Each cattribute maps to something on the model:
 | `eyes` | **googly** big eyes · **crazy** pupils looking different ways · **thicccbrowz** heavy brows · **simple** small dots · **wiley / sleepy** half-closed lids |
 | `mouth` | **tongue** sticks out · **gerbil** buck teeth · **soserious** flat line · default `w` smile |
 
-**Fancy cats** (DuCat, etc.) have no cattributes, so their palette is sampled from their official artwork. DuCats also get little wings.
+All 124 color genes (31 each for fur, pattern, belly and eyes) use the exact hex values from the official kitty SVGs.
+
+**Fancy cats** have no cattributes, so their palette is sampled from their official artwork, and the ones with signature gear wear it: DuCat wings, knights' shields and swords (Gwendolion, Page, Purrzival, Pawderick), wizard staffs (CatFrost, Catseye), pirate hats (Dart, Bartholomeow), Janis' sunglasses, Harriet's bunny ears, Tarun's beak, and a soccer ball for the football squad (Keeper, Striker, Sweeper, Winger). Fancy types not on that list get the palette only.
+
+**Prestige kitties** wear their item: viking helmets (centurion, dominator, explorer, purrior), shields (aegis, centurion, velite), swords (purrior, guard), crowns (meowfool, meowfoolest, meownificent, meownique), bat wings (meowfool, meowfoolest, meowthulhu), antlers (holidaycheer, reindeer, lit, plus a red nose), gem collars (bionic, catterypack, driver), mummy wraps (thatsawrap), a duck beak (duckduckcat), a bowler hat (dreamcloud) and a staff (scout). The mapping lives in `PRESTIGE` / `FANCY` in [`src/cat.js`](src/cat.js).
 
 ## Scenes
 
@@ -126,9 +130,9 @@ Production is GitHub Pages serving the `main` branch over HTTPS, with no CI buil
 |---|---|
 | `index.html` | Page, HUD, styles, import map (three.js from jsDelivr) |
 | `src/main.js` | Tiered renderer and glitch shader, time of day, wallet connection, world loop, collisions, ball physics, petting input, labels |
-| `src/cat.js` | Trait → 3D model, cooldown profiles, and the walk / sit / sleep / hop / zoomies / jump / perch / chase / pet / meow behavior |
+| `src/cat.js` | Trait → 3D model, prestige / fancy accessories, cooldown profiles, and the walk / sit / sleep / hop / zoomies / jump / perch / chase / pet / meow behavior |
 | `src/scenes.js` | Home, office, garden and beach, plus their obstacles, perches and day/night hooks (lights, windows, lamps, sun/moon, stars) |
-| `src/colors.js` | CryptoKitties color gene → hex |
+| `src/colors.js` | All 124 CryptoKitties color genes → hex |
 | `src/api.js` | CryptoKitties API client, palette sampling for fancy cats |
 | `src/audio.js` | Meow and purr playback (WebAudio, per-cat clips, pitch and stereo pan) |
 | `sounds/` | 12 real meows and a purr, public domain / CC0 ([credits](sounds/CREDITS.md)) |
@@ -137,7 +141,7 @@ Production is GitHub Pages serving the `main` branch over HTTPS, with no CI buil
 
 PRs welcome. Some things that would be fun:
 
-- More fancy-cat accessories and more accurate color genes (the table in `src/colors.js` is partly approximate)
+- Accessories for more fancy types and the remaining prestige items (hooks, peg legs, boats, islands)
 
 ## Credits and legal
 

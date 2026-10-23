@@ -364,7 +364,7 @@ function addKitty(data) {
   info.querySelector('b').textContent = data.name;
   info.querySelector('small').textContent = data.fancy
     ? `#${data.id} · ${k.cd.name} · fancy · gen ${data.generation}`
-    : `#${data.id} · ${k.cd.name} · ${t.body || '?'} · ${t.pattern || '?'} · ${t.eyes || '?'}`;
+    : `#${data.id} · ${k.cd.name} · ${t.body || '?'} · ${t.pattern || '?'} · ${t.eyes || '?'}${data.prestige ? ` · ${data.prestige}` : ''}`;
   li.append(img, info);
   li.onclick = () => {
     controls.target.set(k.root.position.x, 0.6, k.root.position.z);
