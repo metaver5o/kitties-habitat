@@ -263,6 +263,17 @@ function buildModel(t, R, detail) {
 
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// Floor spot just outside a perch's furniture, on the side nearest `from`.
+function edgeSpot(perch, from, world) {
+  const o = perch.ob, m = 0.6;
+  const x = clamp(from.x, perch.x0, perch.x1), z = clamp(from.z, perch.z0, perch.z1);
+  const spots = [{ x: o.x0 - m, z }, { x: o.x1 + m, z }, { x, z: o.z0 - m }, { x, z: o.z1 + m }]
+    .filter((p) => world.isFree(p.x, p.z));
+  spots.sort((a, b) => Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z));
+  return spots[0];
+}
 
 export class Kitty {
   constructor(data) {
@@ -291,12 +302,16 @@ export class Kitty {
     this.headYaw = 0;
     this.headYawT = 0;
     this.bubble = null;
+    this.perch = null; // the furniture top we're on, if any
+    this.y = 0;
+    this.jump = null;
   }
 
   place(world) {
     const p = world.randomSpot();
     this.root.position.set(p.x, 0, p.z);
-    this.target = null;
+    this.perch = this.jump = this.target = null;
+    this.y = 0;
     this.state = 'idle';
     this.timer = Math.random() * 2;
   }
@@ -318,6 +333,14 @@ export class Kitty {
   }
 
   poke(world) {
+    if (this.state === 'jump') return;
+    if (this.perch) {
+      if (this.perchPose === 'sleep') {
+        this.perchPose = 'sit';
+        this.say('Mrrr...?');
+      } else this.meow(world);
+      return;
+    }
     if (this.state === 'sleep') {
       this.enter('sit', world);
       this.say('Mrrr...?');
@@ -342,12 +365,45 @@ export class Kitty {
       case 'sit': this.timer = 4 + Math.random() * 8; break;
       case 'sleep': this.timer = 10 + Math.random() * 15; break;
       case 'hop': this.timer = 1.2 + Math.random(); break;
+      case 'perched':
+        this.perchPose = Math.random() < 0.4 * (2 - world.daylight) ? 'sleep' : 'sit';
+        this.timer = this.perchPose === 'sleep' ? 12 + Math.random() * 15 : 5 + Math.random() * 10;
+        break;
       default: this.timer = 1.5 + Math.random() * 3;
     }
   }
 
+  // Walk to the edge of a free perch; update() jumps once we get there.
+  goPerch(world) {
+    const free = (world.env.perches || []).filter((p) => world.kitties.filter((k) => k.perch === p || k.goal === p).length < p.cap);
+    if (!free.length) return false;
+    const perch = pick(free);
+    const at = edgeSpot(perch, this.root.position, world);
+    if (!at) return false;
+    this.enter('walk', world);
+    this.target = at;
+    this.goal = perch;
+    const p = this.root.position;
+    this.timer = Math.hypot(at.x - p.x, at.z - p.z) / this.speed * 2 + 3;
+    return true;
+  }
+
+  startJump(to, toY, perch) {
+    const p = this.root.position;
+    this.jump = { x0: p.x, z0: p.z, y0: this.y, x1: to.x, z1: to.z, y1: toY, k: 0, perch };
+    this.yaw = Math.atan2(to.x - p.x, to.z - p.z);
+    this.perch = null;
+    this.state = 'jump';
+    this.timer = Infinity;
+  }
+
   nextState(world) {
     const r = Math.random();
+    if (this.state === 'perched') {
+      const down = edgeSpot(this.perch, this.root.position, world) || world.randomSpot();
+      return this.startJump(down, 0, null);
+    }
+    if (r < 0.15 && this.goPerch(world)) return;
     if (this.state === 'sleep') return this.enter(r < 0.6 ? 'sit' : 'idle', world);
     if (Math.random() < 0.4 * (1 - world.daylight)) return this.enter('sleep', world); // night: more naps
     if (r < 0.42) return this.enter('walk', world);
@@ -382,20 +438,32 @@ export class Kitty {
     this.acc = 0;
     this.t += dt;
     this.timer -= dt;
-    if (this.timer <= 0) this.nextState(world);
+    if (this.timer <= 0) {
+      this.goal = null;
+      this.nextState(world);
+    }
 
     const want = { sit: 0, sleep: 0, walk: 0 };
     if (this.state === 'walk' || this.state === 'zoomies') {
       want.walk = 1;
       this.steer(dt, world);
+      // reached the furniture: jump up
+      const p = this.root.position;
+      if (this.goal && Math.hypot(this.target.x - p.x, this.target.z - p.z) < 0.3) {
+        const g = this.goal;
+        this.goal = null;
+        this.startJump({ x: clamp(p.x, g.x0, g.x1), z: clamp(p.z, g.z0, g.z1) }, g.y, g);
+      }
     } else if (this.state === 'sit') want.sit = 1;
     else if (this.state === 'sleep') want.sleep = 1;
+    else if (this.state === 'perched') want[this.perchPose] = 1;
+    else if (this.state === 'jump') this.flyJump(dt, world);
 
     this.hop = this.state === 'hop' ? Math.abs(Math.sin(this.t * 7)) * 0.3 : Math.max(0, this.hop - dt * 2);
     const k = 1 - Math.exp(-dt * 5);
     for (const key in want) this.pose[key] += (want[key] - this.pose[key]) * k;
 
-    if (this.state !== 'sleep') {
+    if (this.state !== 'sleep' && !(this.state === 'perched' && this.perchPose === 'sleep')) {
       this.nextMeow -= dt;
       if (this.nextMeow <= 0) {
         this.nextMeow = 6 + Math.random() * 16;
@@ -410,9 +478,27 @@ export class Kitty {
     this.animate(dt);
   }
 
+  // parabolic arc from j.(x0,y0,z0) to j.(x1,y1,z1), crouch before and after
+  flyJump(dt, world) {
+    const j = this.jump;
+    j.k = Math.min(1, j.k + dt / 0.6);
+    const k = j.k, p = this.root.position;
+    p.x = j.x0 + (j.x1 - j.x0) * k;
+    p.z = j.z0 + (j.z1 - j.z0) * k;
+    this.y = j.y0 + (j.y1 - j.y0) * k + Math.sin(Math.PI * k) * (0.35 + Math.max(0, j.y1 - j.y0) * 0.6);
+    if (k < 1) return;
+    this.jump = null;
+    this.y = j.y1;
+    this.perch = j.perch;
+    this.enter(this.perch ? 'perched' : 'idle', world);
+  }
+
   animate(dt) {
     const { sit, sleep, walk } = this.pose;
     this.root.rotation.y = this.yaw;
+    this.root.position.y = this.y;
+    // stretch out mid-air
+    const air = this.jump ? Math.sin(Math.PI * this.jump.k) : 0;
     this.phase += dt * this.speed * 9 * walk;
     const sw = Math.sin(this.phase) * 0.6 * walk;
 
@@ -427,7 +513,7 @@ export class Kitty {
     for (const [i, leg] of this.legs.entries()) {
       const front = i < 2;
       const swing = (i === 0 || i === 3 ? 1 : -1) * sw;
-      leg.rotation.x = front ? swing - pitch - 1.4 * sleep : swing - 1.25 * sit - 1.4 * sleep;
+      leg.rotation.x = (front ? swing - pitch - 1.4 * sleep : swing - 1.25 * sit - 1.4 * sleep) + (front ? -0.9 : 0.9) * air;
       leg.scale.y = front ? Math.max(0.6, reach * (1 - sleep) + sleep) : 1;
     }
 

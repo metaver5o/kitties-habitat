@@ -3,6 +3,8 @@ import { rng, mat, vcMat, painted, put, B } from './util.js';
 
 // Each scene returns { group, bounds, obstacles, bg, fog, cam, sky, update? }.
 // Obstacles are floor AABBs {x0, x1, z0, z1} the cats walk around.
+// perches are tops cats can jump onto: {x0, x1, z0, z1, y, cap, ob}, where ob
+// is the obstacle underneath and cap how many cats fit.
 // sky holds what the day/night cycle drives: lights and their daytime
 // intensities, window glass, lamps, the sun/moon disc and stars.
 
@@ -87,13 +89,15 @@ function home() {
   put(g, B(3.8, 1.0, 0.35), sofa, sx, 0.95, sz - 0.5);
   for (const i of [-1, 1]) put(g, B(0.35, 0.8, 1.3), sofa, sx + i * 1.9, 0.55, sz);
   put(g, B(0.7, 0.5, 0.25), '#f2d16b', sx - 1.1, 0.95, sz - 0.2).rotation.z = 0.2;
-  obstacles.push({ x0: sx - 2.1, x1: sx + 2.1, z0: sz - 0.7, z1: sz + 0.7 });
+  const sofaOb = { x0: sx - 2.1, x1: sx + 2.1, z0: sz - 0.7, z1: sz + 0.7 };
+  obstacles.push(sofaOb);
 
   // coffee table
   put(g, B(1.8, 0.08, 1), '#7a4b2a', 0.3, 0.48, 0.6);
   for (const [lx, lz] of [[-0.8, -0.4], [0.8, -0.4], [-0.8, 0.4], [0.8, 0.4]]) put(g, B(0.08, 0.45, 0.08), '#5e3920', 0.3 + lx, 0.225, 0.6 + lz);
   put(g, new THREE.CylinderGeometry(0.08, 0.06, 0.15, 6), '#ffffff', 0.6, 0.6, 0.5);
-  obstacles.push({ x0: -0.6, x1: 1.2, z0: 0.1, z1: 1.1 });
+  const tableOb = { x0: -0.6, x1: 1.2, z0: 0.1, z1: 1.1 };
+  obstacles.push(tableOb);
 
   obstacles.push(plant(g, 4.9, -3.7));
 
@@ -127,8 +131,12 @@ function home() {
   const sky = lights(g, '#fff4e0', '#8a6a4a', 1.4, 1.8, [3, 8, 6]);
   sky.windows.push(pane);
   sky.lamps.push({ light: lamp, day: 4, night: 14 });
+  const perches = [
+    { x0: sx - 1.6, x1: sx + 1.6, z0: sz - 0.25, z1: sz + 0.5, y: 0.75, cap: 3, ob: sofaOb },
+    { x0: -0.35, x1: 0.95, z0: 0.35, z1: 0.85, y: 0.52, cap: 1, ob: tableOb },
+  ];
   return {
-    group: g, obstacles, bg: '#2a2230', fog: null, sky,
+    group: g, obstacles, perches, bg: '#2a2230', fog: null, sky,
     bounds: { x0: -5.6, x1: 5.6, z0: -4.2, z1: 4.2 },
     cam: { pos: [0, 6.5, 10.5], target: [0, 0.6, 0] },
   };
@@ -166,6 +174,7 @@ function office() {
   put(g, B(0.02, 0.05, 0.8), '#3d7be0', -W / 2 + 0.1, 2.0, 0.6);
 
   const obstacles = [];
+  const perches = [];
   for (const x of [-3.5, 0.5, 4.5]) {
     const z = -3;
     put(g, B(2.2, 0.08, 1.0), '#e6e1d6', x, 0.76, z);
@@ -181,7 +190,11 @@ function office() {
     put(g, B(0.6, 0.65, 0.08), '#2d3a4f', x, 0.85, cz + 0.3);
     put(g, new THREE.CylinderGeometry(0.04, 0.04, 0.45, 5), '#444444', x, 0.25, cz);
     for (const r of [0, Math.PI / 2]) put(g, B(0.65, 0.05, 0.08), '#444444', x, 0.03, cz).rotation.y = r + 0.4;
-    obstacles.push({ x0: x - 1.15, x1: x + 1.15, z0: z - 0.55, z1: cz + 0.4 });
+    const ob = { x0: x - 1.15, x1: x + 1.15, z0: z - 0.55, z1: cz + 0.4 };
+    obstacles.push(ob);
+    // on the desk, right in front of the keyboard, like real cats
+    perches.push({ x0: x - 0.85, x1: x + 0.85, z0: z + 0.2, z1: z + 0.35, y: 0.8, cap: 1, ob });
+    perches.push({ x0: x - 0.05, x1: x + 0.05, z0: cz - 0.1, z1: cz + 0.05, y: 0.54, cap: 1, ob });
   }
   // water cooler
   put(g, B(0.5, 1.1, 0.5), '#e8e8e8', -6.3, 0.55, -4.3);
@@ -192,7 +205,9 @@ function office() {
   obstacles.push(plant(g, -6.3, 4.2, '#ffffff'));
   // beanbag + cardboard box (cats love boxes)
   put(g, new THREE.IcosahedronGeometry(0.6, 1).scale(1, 0.55, 1), '#f08a3c', 4.8, 0.32, 2.8);
-  obstacles.push({ x0: 4.2, x1: 5.4, z0: 2.2, z1: 3.4 });
+  const bagOb = { x0: 4.2, x1: 5.4, z0: 2.2, z1: 3.4 };
+  obstacles.push(bagOb);
+  perches.push({ x0: 4.7, x1: 4.9, z0: 2.7, z1: 2.9, y: 0.6, cap: 1, ob: bagOb });
   const bx = 1.2, bz = 2.4, kraft = '#c49a63';
   put(g, B(0.9, 0.03, 0.7), kraft, bx, 0.015, bz);
   for (const s of [-1, 1]) {
@@ -204,7 +219,7 @@ function office() {
   sky.windows.push(pane);
   sky.lamps.push(...lamps);
   return {
-    group: g, obstacles, bg: '#1e2430', fog: null, sky,
+    group: g, obstacles, perches, bg: '#1e2430', fog: null, sky,
     bounds: { x0: -6.4, x1: 6.4, z0: -4.6, z1: 4.6 },
     cam: { pos: [0, 7, 11.5], target: [0, 0.6, 0] },
   };
@@ -249,10 +264,21 @@ function garden() {
     put(g, new THREE.DodecahedronGeometry(0.22, 0), '#9a9a9a', 3.5 + Math.cos(a) * 1.95, 0.08, -2 + Math.sin(a) * 1.95);
   }
   obstacles.push({ x0: 1.4, x1: 5.6, z0: -4.1, z1: 0.1 });
+  const perches = [];
   for (const [x, z, s] of [[-4, 1.5, 0.45], [5.5, 4, 0.35]]) {
     put(g, new THREE.DodecahedronGeometry(s, 0), '#9a9a9a', x, s * 0.6, z);
-    obstacles.push({ x0: x - s, x1: x + s, z0: z - s, z1: z + s });
+    const ob = { x0: x - s, x1: x + s, z0: z - s, z1: z + s };
+    obstacles.push(ob);
+    perches.push({ x0: x - 0.05, x1: x + 0.05, z0: z - 0.05, z1: z + 0.05, y: s * 1.45, cap: 1, ob });
   }
+  // bench
+  const bx = -2.5, bz = -4.6, wood = '#a0703f';
+  put(g, B(2.2, 0.08, 0.7), wood, bx, 0.5, bz);
+  put(g, B(2.2, 0.5, 0.08), wood, bx, 0.85, bz - 0.33);
+  for (const s of [-1, 1]) put(g, B(0.1, 0.5, 0.6), '#5a5a5a', bx + s * 0.95, 0.25, bz);
+  const benchOb = { x0: bx - 1.15, x1: bx + 1.15, z0: bz - 0.4, z1: bz + 0.35 };
+  obstacles.push(benchOb);
+  perches.push({ x0: bx - 0.6, x1: bx + 0.6, z0: bz - 0.05, z1: bz + 0.1, y: 0.54, cap: 2, ob: benchOb });
   for (const [x, z] of [[-6, -2], [7, -1.5], [-2, -6.5], [0, 5.8]]) {
     put(g, new THREE.IcosahedronGeometry(0.55, 0).scale(1, 0.7, 1), '#3f8f3a', x, 0.35, z);
     obstacles.push({ x0: x - 0.5, x1: x + 0.5, z0: z - 0.5, z1: z + 0.5 });
@@ -287,7 +313,7 @@ function garden() {
   const sky = lights(g, '#cfeaff', '#4a7a35', 1.3, 2.2, [-10, 15, 8]);
   Object.assign(sky, { outdoor: true, orb: orb(g, 2.5), stars: stars(g, R), orbDist: 50 });
   return {
-    group: g, obstacles, bg: '#8fd0ff', fog: ['#8fd0ff', 28, 70], sky,
+    group: g, obstacles, perches, bg: '#8fd0ff', fog: ['#8fd0ff', 28, 70], sky,
     bounds: { x0: -9, x1: 9, z0: -7.3, z1: 7 },
     cam: { pos: [0, 8, 15], target: [0, 0.5, 0] },
     update(t, dt, daylight) {
@@ -357,8 +383,19 @@ function beach() {
     put(g, new THREE.CylinderGeometry(0.18, 0.2, 0.75, 6), sand, cx + dx, 0.375, cz + dz);
     put(g, new THREE.ConeGeometry(0.22, 0.3, 6), '#cfa964', cx + dx, 0.9, cz + dz);
   }
-  put(g, B(0.02, 0.3, 0.2), '#e74c3c', cx, 1.0, cz);
-  obstacles.push({ x0: cx - 0.75, x1: cx + 0.75, z0: cz - 0.75, z1: cz + 0.75 });
+  put(g, B(0.02, 0.3, 0.2), '#e74c3c', cx + 0.5, 1.2, cz - 0.5);
+  const castleOb = { x0: cx - 0.75, x1: cx + 0.75, z0: cz - 0.75, z1: cz + 0.75 };
+  obstacles.push(castleOb);
+  // cooler box
+  const kx = 5, kz = 2.5;
+  put(g, B(0.8, 0.45, 0.5), '#3d7be0', kx, 0.225, kz);
+  put(g, B(0.84, 0.08, 0.54), '#ffffff', kx, 0.48, kz);
+  const coolerOb = { x0: kx - 0.4, x1: kx + 0.4, z0: kz - 0.25, z1: kz + 0.25 };
+  obstacles.push(coolerOb);
+  const perches = [
+    { x0: cx - 0.05, x1: cx + 0.05, z0: cz - 0.05, z1: cz + 0.05, y: 0.825, cap: 1, ob: castleOb },
+    { x0: kx - 0.1, x1: kx + 0.1, z0: kz - 0.02, z1: kz + 0.02, y: 0.52, cap: 1, ob: coolerOb },
+  ];
 
   for (let i = 0; i < 6; i++) {
     const s = put(g, new THREE.ConeGeometry(0.16, 0.03, 5), '#ff8a5c', (R() - 0.5) * 16, 0.02, (R() - 0.5) * 12);
@@ -367,7 +404,7 @@ function beach() {
   const sky = lights(g, '#ffffff', '#e0c89a', 1.3, 2.4, [8, 14, 6]);
   Object.assign(sky, { outdoor: true, orb: orb(g, 3), stars: stars(g, R), orbDist: 65 });
   return {
-    group: g, obstacles, bg: '#9ad7f5', fog: ['#9ad7f5', 30, 85], sky,
+    group: g, obstacles, perches, bg: '#9ad7f5', fog: ['#9ad7f5', 30, 85], sky,
     bounds: { x0: -9, x1: 9, z0: -7.8, z1: 6 },
     cam: { pos: [0, 7, 14], target: [0, 0.5, 0] },
     update(t) {

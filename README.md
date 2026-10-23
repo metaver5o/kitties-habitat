@@ -25,6 +25,7 @@ it walks around, sits, naps, gets the zoomies and meows with real cat voices.
 - **Wallet-gated.** Nothing shows until you connect a browser wallet (MetaMask or similar). Then that account's kitties load into the scene. Switch accounts and the cats switch too. Disconnect and they leave.
 - **Every cat is unique.** No sprites or stock models. Each kitty is built in 3D from its own traits, so two wallets never look the same.
 - **They behave like cats.** They wander, avoid furniture and each other, sit, curl up to sleep (`zZz`), hop, and get the occasional zoomies.
+- **They climb furniture.** Kitties walk up to the sofa, coffee table, office desks (right in front of the keyboard) and chairs, the beanbag, the garden bench and rocks, the sandcastle and the beach cooler, jump up, sit or nap there for a while, then hop back down. Each surface has room for a set number of cats.
 - **Real meows.** Each kitty has its own set of real cat recordings and its own pitch. Click a kitty, or its card in the roster, to make it meow, or to wake it up.
 - **Four scenes.** Home, office, garden and beach, each with props the cats walk around (sofa, desks, a pond they won't step into, sandcastles).
 - **Day and night.** `Time: auto` follows your local clock: the sun and moon cross the sky, windows go dark, lamps come on, stars and garden fireflies come out, and kitties nap more at night. `day` / `night` pin it, `cycle` plays a whole day in 3 minutes.
@@ -123,8 +124,8 @@ Production is GitHub Pages serving the `main` branch over HTTPS, with no CI buil
 |---|---|
 | `index.html` | Page, HUD, styles, import map (three.js from jsDelivr) |
 | `src/main.js` | Tiered renderer and glitch shader, time of day, wallet connection, world loop, collisions, labels |
-| `src/cat.js` | Trait → 3D model, cooldown profiles, and the walk / sit / sleep / hop / zoomies / meow behavior |
-| `src/scenes.js` | Home, office, garden and beach, plus their obstacles and day/night hooks (lights, windows, lamps, sun/moon, stars) |
+| `src/cat.js` | Trait → 3D model, cooldown profiles, and the walk / sit / sleep / hop / zoomies / jump / perch / meow behavior |
+| `src/scenes.js` | Home, office, garden and beach, plus their obstacles, perches and day/night hooks (lights, windows, lamps, sun/moon, stars) |
 | `src/colors.js` | CryptoKitties color gene → hex |
 | `src/api.js` | CryptoKitties API client, palette sampling for fancy cats |
 | `src/audio.js` | Meow playback (WebAudio, per-cat clips, pitch and stereo pan) |
@@ -134,7 +135,6 @@ Production is GitHub Pages serving the `main` branch over HTTPS, with no CI buil
 
 PRs welcome. Some things that would be fun:
 
-- Jumping onto furniture (sofa, desks, sandcastle)
 - Chasing the yarn ball and beach ball, and petting to purr
 - More fancy-cat accessories and more accurate color genes (the table in `src/colors.js` is partly approximate)
 

@@ -180,12 +180,18 @@ const world = {
   meowCooldown: 0,
   daylight: 1,
 
+  isFree(x, z, pad = 0.4) {
+    const b = this.env.bounds;
+    if (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1) return false;
+    return !this.env.obstacles.some((o) => x > o.x0 - pad && x < o.x1 + pad && z > o.z0 - pad && z < o.z1 + pad);
+  },
+
   randomSpot() {
-    const { bounds: b, obstacles } = this.env;
+    const b = this.env.bounds;
     for (let i = 0; i < 40; i++) {
       const x = b.x0 + Math.random() * (b.x1 - b.x0);
       const z = b.z0 + Math.random() * (b.z1 - b.z0);
-      if (!obstacles.some((o) => x > o.x0 - 0.6 && x < o.x1 + 0.6 && z > o.z0 - 0.6 && z < o.z1 + 0.6)) return { x, z };
+      if (this.isFree(x, z, 0.6)) return { x, z };
     }
     return { x: 0, z: 0 };
   },
@@ -207,6 +213,12 @@ const world = {
     const pad = 0.35;
     for (const k of this.kitties) {
       const p = k.root.position;
+      if (k.jump) continue;
+      if (k.perch) {
+        p.x = Math.max(k.perch.x0, Math.min(k.perch.x1, p.x));
+        p.z = Math.max(k.perch.z0, Math.min(k.perch.z1, p.z));
+        continue;
+      }
       for (const o of this.env.obstacles) {
         if (p.x > o.x0 - pad && p.x < o.x1 + pad && p.z > o.z0 - pad && p.z < o.z1 + pad) {
           const l = p.x - (o.x0 - pad), r = o.x1 + pad - p.x, f = p.z - (o.z0 - pad), bk = o.z1 + pad - p.z;
@@ -219,7 +231,9 @@ const world = {
     }
     for (let i = 0; i < this.kitties.length; i++) {
       for (let j = i + 1; j < this.kitties.length; j++) {
-        const a = this.kitties[i].root.position, c = this.kitties[j].root.position;
+        const ki = this.kitties[i], kj = this.kitties[j];
+        if (ki.jump || kj.jump || ki.perch !== kj.perch) continue;
+        const a = ki.root.position, c = kj.root.position;
         const dx = c.x - a.x, dz = c.z - a.z, d = Math.hypot(dx, dz);
         if (d > 0 && d < 0.8) {
           const push = (0.8 - d) / 2;
