@@ -50,6 +50,7 @@ export function cooldownProfile(index) {
 }
 
 const SAYINGS = ['Miau!', 'Miaau~', 'Mrrp?', 'Meow!', 'Nyaa~', 'Mew!', 'Mrrrow', 'Miau miau'];
+const BATS = ['Mrrp!', '*bat*', 'Nya!', '*pounce*'];
 
 function patternKind(name) {
   if (!name || name === 'totesbasic') return 'none';
@@ -305,6 +306,11 @@ export class Kitty {
     this.perch = null; // the furniture top we're on, if any
     this.y = 0;
     this.jump = null;
+    this.toy = null; // the ball we're chasing
+    this.batCool = 0;
+    this.swipe = 0;
+    this.petting = false;
+    this.petAmt = 0;
   }
 
   place(world) {
@@ -321,6 +327,7 @@ export class Kitty {
   }
 
   bubbleText() {
+    if (this.petting) return 'Prrr ♥';
     if (this.bubble && this.t < this.bubble.until) return this.bubble.text;
     if (this.pose.sleep > 0.7) return ['z', 'zZ', 'zZz'][Math.floor(this.t * 1.5) % 3];
     return null;
@@ -330,6 +337,21 @@ export class Kitty {
     // mouth stays open for as long as the recording plays
     this.meowDur = this.meowT = world.playMeow(this) || 0.9;
     this.say(pick(SAYINGS), Math.max(1.8, this.meowDur + 0.6));
+  }
+
+  // held click: sit still and purr; perched cats stay put
+  pet(on) {
+    this.petting = on;
+    if (!on) return this.say('♥', 1.5);
+    if (this.perch) this.perchPose = 'sit';
+    else if (!this.jump) this.state = 'sit';
+    this.timer = Math.max(this.timer, 4);
+  }
+
+  chase(toy, world) {
+    if (this.perch || this.jump) return;
+    this.enter('chase', world);
+    this.toy = toy;
   }
 
   poke(world) {
@@ -365,6 +387,11 @@ export class Kitty {
       case 'sit': this.timer = 4 + Math.random() * 8; break;
       case 'sleep': this.timer = 10 + Math.random() * 15; break;
       case 'hop': this.timer = 1.2 + Math.random(); break;
+      case 'chase':
+        this.toy = pick(world.env.toys);
+        this.speed = 1.6 * this.cd.tempo;
+        this.timer = 6 + Math.random() * 6;
+        break;
       case 'perched':
         this.perchPose = Math.random() < 0.4 * (2 - world.daylight) ? 'sleep' : 'sit';
         this.timer = this.perchPose === 'sleep' ? 12 + Math.random() * 15 : 5 + Math.random() * 10;
@@ -404,6 +431,7 @@ export class Kitty {
       return this.startJump(down, 0, null);
     }
     if (r < 0.15 && this.goPerch(world)) return;
+    if (world.env.toys?.length && Math.random() < 0.12) return this.enter('chase', world);
     if (this.state === 'sleep') return this.enter(r < 0.6 ? 'sit' : 'idle', world);
     if (Math.random() < 0.4 * (1 - world.daylight)) return this.enter('sleep', world); // night: more naps
     if (r < 0.42) return this.enter('walk', world);
@@ -419,7 +447,7 @@ export class Kitty {
     const dx = this.target.x - p.x, dz = this.target.z - p.z;
     if (Math.hypot(dx, dz) < 0.25) {
       if (this.state === 'zoomies') this.target = world.randomSpot();
-      else this.timer = 0;
+      else if (this.state !== 'chase') this.timer = 0;
       return;
     }
     const diff = wrap(Math.atan2(dx, dz) - this.yaw);
@@ -443,8 +471,12 @@ export class Kitty {
       this.nextState(world);
     }
 
+    if (this.petting) this.timer = Math.max(this.timer, 2);
+    this.batCool -= dt;
+    this.swipe = Math.max(0, this.swipe - dt * 4);
+    if (this.state === 'chase') this.chaseToy(world);
     const want = { sit: 0, sleep: 0, walk: 0 };
-    if (this.state === 'walk' || this.state === 'zoomies') {
+    if (this.state === 'walk' || this.state === 'zoomies' || this.state === 'chase') {
       want.walk = 1;
       this.steer(dt, world);
       // reached the furniture: jump up
@@ -476,6 +508,19 @@ export class Kitty {
     if (this.blinkT < -0.12) this.blinkT = 2 + Math.random() * 4;
 
     this.animate(dt);
+  }
+
+  // run at the ball and bat it when close enough
+  chaseToy(world) {
+    const b = this.toy.mesh.position, p = this.root.position;
+    this.target = { x: b.x, z: b.z };
+    const dx = b.x - p.x, dz = b.z - p.z, d = Math.hypot(dx, dz);
+    if (d > 0.55 + this.toy.r || this.batCool > 0) return;
+    const f = 2 + Math.random() * 2.5, side = (Math.random() - 0.5) * 2;
+    world.kick(this.toy, (dx / d) * f + (-dz / d) * side, (dz / d) * f + (dx / d) * side);
+    this.batCool = 0.7;
+    this.swipe = 1;
+    if (Math.random() < 0.35) this.say(pick(BATS), 1);
   }
 
   // parabolic arc from j.(x0,y0,z0) to j.(x1,y1,z1), crouch before and after
@@ -513,18 +558,22 @@ export class Kitty {
     for (const [i, leg] of this.legs.entries()) {
       const front = i < 2;
       const swing = (i === 0 || i === 3 ? 1 : -1) * sw;
-      leg.rotation.x = (front ? swing - pitch - 1.4 * sleep : swing - 1.25 * sit - 1.4 * sleep) + (front ? -0.9 : 0.9) * air;
+      leg.rotation.x = (front ? swing - pitch - 1.4 * sleep : swing - 1.25 * sit - 1.4 * sleep) + (front ? -0.9 : 0.9) * air
+        - (i === 1 ? 1.3 * Math.sin(Math.PI * this.swipe) : 0);
       leg.scale.y = front ? Math.max(0.6, reach * (1 - sleep) + sleep) : 1;
     }
 
     const meowAmt = this.meowT > 0 ? Math.sin(Math.PI * (1 - this.meowT / this.meowDur)) : 0;
     this.headYaw += (this.headYawT - this.headYaw) * (1 - Math.exp(-dt * 3));
-    this.head.rotation.set(-0.35 * meowAmt + 0.35 * sleep + Math.sin(this.phase * 2) * 0.03 * walk, this.headYaw, 0);
+    this.petAmt += ((this.petting ? 1 : 0) - this.petAmt) * (1 - Math.exp(-dt * 6));
+    const pet = this.petAmt;
+    this.head.rotation.set(-0.35 * meowAmt + 0.35 * sleep + Math.sin(this.phase * 2) * 0.03 * walk - 0.3 * pet,
+      this.headYaw * (1 - pet), 0.25 * pet * Math.sin(this.t * 1.6));
     this.head.position.y = 0.58 - 0.15 * sleep;
     this.hole.scale.y = 0.05 + meowAmt;
 
     const eyeY = this.blinkT < 0 ? 0.1 : 1;
-    for (const e of this.eyes) e.scale.y = eyeY * (1 - sleep) + 0.08 * sleep;
+    for (const e of this.eyes) e.scale.y = (eyeY * (1 - sleep) + 0.08 * sleep) * (1 - 0.8 * pet);
 
     const amp = (0.12 + 0.18 * walk) * (1 - 0.8 * sleep);
     this.tail.rotation.x = 0.7 - 0.5 * sleep + 0.3 * sit;

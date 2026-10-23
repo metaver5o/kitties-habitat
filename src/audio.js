@@ -5,8 +5,10 @@ const CLIPS = Array.from({ length: 12 }, (_, i) => `sounds/meow-${String(i + 1).
 let ctx = null;
 let master = null;
 let buffers = [];
+let purrBuf = null;
 
 async function loadClips() {
+  fetch('sounds/purr.mp3').then((r) => r.arrayBuffer()).then((b) => ctx.decodeAudioData(b)).then((b) => (purrBuf = b)).catch(() => {});
   const decoded = await Promise.all(CLIPS.map(async (url) => {
     try {
       const r = await fetch(url);
@@ -46,5 +48,31 @@ export const audio = {
     src.connect(panner).connect(master);
     src.start();
     return buf.duration / src.playbackRate.value;
+  },
+
+  // Looping purr while a kitty is petted. Returns { stop() }.
+  purr(voice, pan = 0) {
+    if (!this.enabled || !ctx || ctx.state !== 'running' || !purrBuf) return { stop() {} };
+    const src = ctx.createBufferSource();
+    src.buffer = purrBuf;
+    src.loop = true;
+    src.loopStart = 0.05; // skip mp3 encoder padding so the loop is seamless
+    src.loopEnd = purrBuf.duration - 0.05;
+    src.playbackRate.value = voice.rate;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.4);
+    const panner = ctx.createStereoPanner ? ctx.createStereoPanner() : ctx.createGain();
+    if (panner.pan) panner.pan.value = Math.max(-1, Math.min(1, pan));
+    src.connect(gain).connect(panner).connect(master);
+    src.start(0, Math.random() * 5);
+    return {
+      stop() {
+        gain.gain.cancelScheduledValues(ctx.currentTime);
+        gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
+        src.stop(ctx.currentTime + 0.55);
+      },
+    };
   },
 };

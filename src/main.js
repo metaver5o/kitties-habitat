@@ -174,6 +174,7 @@ function applyTime(hour) {
 
 // --- world -----------------------------------------------------------------
 
+const axis = new THREE.Vector3();
 const world = {
   env: null,
   kitties: [],
@@ -202,9 +203,40 @@ const world = {
     return true;
   },
 
-  playMeow(k) {
+  pan(k) {
     const b = this.env.bounds;
-    return audio.meow(k.voice, ((k.root.position.x - b.x0) / (b.x1 - b.x0)) * 1.6 - 0.8);
+    return ((k.root.position.x - b.x0) / (b.x1 - b.x0)) * 1.6 - 0.8;
+  },
+
+  playMeow(k) {
+    return audio.meow(k.voice, this.pan(k));
+  },
+
+  kick(toy, vx, vz) {
+    toy.vel.set(vx, 0, vz);
+  },
+
+  // balls roll, slow down, and bounce off walls and furniture
+  updateToys(dt) {
+    const b = this.env.bounds;
+    for (const t of this.env.toys || []) {
+      const p = t.mesh.position, v = t.vel;
+      p.x += v.x * dt;
+      p.z += v.z * dt;
+      const sp = Math.hypot(v.x, v.z);
+      if (sp > 0.01) t.mesh.rotateOnWorldAxis(axis.set(v.z, 0, -v.x).normalize(), (sp * dt) / t.r);
+      v.multiplyScalar(Math.exp(-dt * 1.2));
+      if (p.x < b.x0 || p.x > b.x1) { p.x = Math.max(b.x0, Math.min(b.x1, p.x)); v.x *= -0.7; }
+      if (p.z < b.z0 || p.z > b.z1) { p.z = Math.max(b.z0, Math.min(b.z1, p.z)); v.z *= -0.7; }
+      for (const o of this.env.obstacles) {
+        const r = t.r;
+        if (p.x > o.x0 - r && p.x < o.x1 + r && p.z > o.z0 - r && p.z < o.z1 + r) {
+          const l = p.x - (o.x0 - r), rt = o.x1 + r - p.x, f = p.z - (o.z0 - r), bk = o.z1 + r - p.z;
+          const m = Math.min(l, rt, f, bk);
+          if (m === l || m === rt) { p.x += m === l ? -l : rt; v.x *= -0.7; } else { p.z += m === f ? -f : bk; v.z *= -0.7; }
+        }
+      }
+    }
   },
 
   // keep cats out of furniture, inside the room, and off each other
@@ -253,6 +285,7 @@ function setScene(key) {
   const env = SCENES[key].build();
   world.env = env;
   env.group.traverse((o) => o.isLight && o.layers.enableAll());
+  for (const t of env.toys || []) t.vel = new THREE.Vector3();
   scene.add(env.group);
   scene.background = new THREE.Color(env.bg);
   scene.fog = env.fog ? new THREE.Fog(...env.fog) : null;
@@ -300,6 +333,7 @@ addEventListener('pointerdown', () => audio.unlock(), { capture: true });
 addEventListener('keydown', () => audio.unlock(), { capture: true });
 
 function clearKitties() {
+  endPet();
   for (const k of world.kitties) {
     scene.remove(k.root);
     k.root.traverse((o) => o.geometry?.dispose());
@@ -399,17 +433,58 @@ $('#connect').onclick = async () => {
 
 window.ethereum?.on?.('accountsChanged', (accts) => setAccount(accts[0]));
 
-// click a kitty to make it meow (ignore drags)
+// click a kitty to make it meow, hold to pet it; click a ball to throw it
 const ray = new THREE.Raycaster();
 ray.layers.enableAll(); // kitties live on per-cooldown layers
 let down = null;
-canvas.addEventListener('pointerdown', (e) => (down = [e.clientX, e.clientY]));
-canvas.addEventListener('pointerup', (e) => {
-  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) return;
+let pet = null; // { kitty, t0, purr }
+
+function pick(e, objects) {
   ray.setFromCamera(new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
-  const hit = ray.intersectObjects(world.kitties.map((k) => k.root), true)[0];
-  hit?.object.userData.kitty?.poke(world);
+  return ray.intersectObjects(objects, true)[0];
+}
+
+function endPet() {
+  if (!pet) return;
+  if (pet.purr) {
+    pet.purr.stop();
+    pet.kitty.pet(false);
+  }
+  pet = null;
+  controls.enabled = true;
+}
+
+// capture: runs before OrbitControls so holding a kitty doesn't orbit
+canvas.addEventListener('pointerdown', (e) => {
+  down = [e.clientX, e.clientY];
+  const kitty = pick(e, world.kitties.map((k) => k.root))?.object.userData.kitty;
+  if (!kitty) return;
+  pet = { kitty, t0: performance.now(), purr: null };
+  controls.enabled = false;
+}, { capture: true });
+
+canvas.addEventListener('pointerup', (e) => {
+  const click = down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 6;
+  down = null;
+  if (pet) {
+    const tap = !pet.purr;
+    const k = pet.kitty;
+    endPet();
+    if (tap && click) k.poke(world);
+    return;
+  }
+  if (!click) return;
+  const hit = pick(e, (world.env.toys || []).map((t) => t.mesh));
+  const t = hit && world.env.toys.find((t) => t.mesh === hit.object);
+  if (!t) return;
+  const dir = t.mesh.position.clone().sub(camera.position).setY(0).normalize().multiplyScalar(4.5);
+  world.kick(t, dir.x, dir.z);
+  // the nearest couple of awake kitties give chase
+  const awake = world.kitties.filter((k) => k.state !== 'sleep' && !k.perch && !k.jump);
+  awake.sort((a, b) => a.root.position.distanceTo(t.mesh.position) - b.root.position.distanceTo(t.mesh.position));
+  for (const k of awake.slice(0, 2)) k.chase(t, world);
 });
+canvas.addEventListener('pointercancel', endPet);
 
 // --- loop ------------------------------------------------------------------
 
@@ -419,9 +494,14 @@ function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
   world.meowCooldown -= dt;
+  if (pet && !pet.purr && performance.now() - pet.t0 > 350) {
+    pet.kitty.pet(true);
+    pet.purr = audio.purr(pet.kitty.voice, world.pan(pet.kitty));
+  }
   applyTime(hourNow(t));
   world.env.update?.(t, dt, world.daylight);
   for (const k of world.kitties) k.update(dt, world);
+  world.updateToys(dt);
   world.resolve();
   controls.update();
   render(t);

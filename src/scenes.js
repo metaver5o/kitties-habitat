@@ -3,6 +3,7 @@ import { rng, mat, vcMat, painted, put, B } from './util.js';
 
 // Each scene returns { group, bounds, obstacles, bg, fog, cam, sky, update? }.
 // Obstacles are floor AABBs {x0, x1, z0, z1} the cats walk around.
+// toys are balls the cats chase and bat around: {mesh, r}.
 // perches are tops cats can jump onto: {x0, x1, z0, z1, y, cap, ob}, where ob
 // is the obstacle underneath and cap how many cats fit.
 // sky holds what the day/night cycle drives: lights and their daytime
@@ -40,6 +41,19 @@ function stars(g, R) {
 
 // one disc that is the sun by day and the moon by night
 const orb = (g, r) => put(g, new THREE.SphereGeometry(r, 8, 6), new THREE.MeshBasicMaterial({ color: '#fff3b0', fog: false }));
+
+// A rolling ball: the mesh sits at its center and spins as it rolls.
+function toy(g, geo, material, r, x, z) {
+  const mesh = put(g, geo, material, x, r, z);
+  return { mesh, r };
+}
+
+// yarn: a ball wound in bands of two shades
+function yarn(g, color, x, z) {
+  const a = C(color), b = C(color).multiplyScalar(0.75);
+  const geo = painted(new THREE.IcosahedronGeometry(0.17, 1), (m) => (Math.sin((m.y + m.x * 0.6) * 40) > 0 ? a : b));
+  return toy(g, geo, vcMat(), 0.17, x, z);
+}
 
 function plant(g, x, z, pot = '#d9774a') {
   put(g, new THREE.CylinderGeometry(0.35, 0.27, 0.6, 6), pot, x, 0.3, z);
@@ -125,7 +139,7 @@ function home() {
   // cat stuff
   put(g, new THREE.TorusGeometry(0.45, 0.16, 5, 8).rotateX(-Math.PI / 2), '#d9a3c4', 3.6, 0.14, 2.2);
   put(g, new THREE.CylinderGeometry(0.42, 0.42, 0.06, 8), '#f3d4e6', 3.6, 0.04, 2.2);
-  put(g, new THREE.IcosahedronGeometry(0.16, 1), '#e0457b', -2.2, 0.16, 2.2);
+  const toys = [yarn(g, '#e0457b', -2.2, 2.2)];
   put(g, new THREE.CylinderGeometry(0.22, 0.17, 0.12, 8), '#5b8def', 5, 0.06, 3.4);
 
   const sky = lights(g, '#fff4e0', '#8a6a4a', 1.4, 1.8, [3, 8, 6]);
@@ -136,7 +150,7 @@ function home() {
     { x0: -0.35, x1: 0.95, z0: 0.35, z1: 0.85, y: 0.52, cap: 1, ob: tableOb },
   ];
   return {
-    group: g, obstacles, perches, bg: '#2a2230', fog: null, sky,
+    group: g, obstacles, perches, toys, bg: '#2a2230', fog: null, sky,
     bounds: { x0: -5.6, x1: 5.6, z0: -4.2, z1: 4.2 },
     cam: { pos: [0, 6.5, 10.5], target: [0, 0.6, 0] },
   };
@@ -220,6 +234,7 @@ function office() {
   sky.lamps.push(...lamps);
   return {
     group: g, obstacles, perches, bg: '#1e2430', fog: null, sky,
+    toys: [toy(g, new THREE.IcosahedronGeometry(0.13, 0), '#f4f1ea', 0.13, -1.5, 1.5)],
     bounds: { x0: -6.4, x1: 6.4, z0: -4.6, z1: 4.6 },
     cam: { pos: [0, 7, 11.5], target: [0, 0.6, 0] },
   };
@@ -313,7 +328,7 @@ function garden() {
   const sky = lights(g, '#cfeaff', '#4a7a35', 1.3, 2.2, [-10, 15, 8]);
   Object.assign(sky, { outdoor: true, orb: orb(g, 2.5), stars: stars(g, R), orbDist: 50 });
   return {
-    group: g, obstacles, perches, bg: '#8fd0ff', fog: ['#8fd0ff', 28, 70], sky,
+    group: g, obstacles, perches, toys: [yarn(g, '#4f7fe0', -1.5, 3)], bg: '#8fd0ff', fog: ['#8fd0ff', 28, 70], sky,
     bounds: { x0: -9, x1: 9, z0: -7.3, z1: 7 },
     cam: { pos: [0, 8, 15], target: [0, 0.5, 0] },
     update(t, dt, daylight) {
@@ -372,8 +387,7 @@ function beach() {
 
   // beach ball
   const ball = ['#e74c3c', '#ffffff', '#f1c40f', '#ffffff', '#3d7be0', '#ffffff'].map(C);
-  put(g, painted(new THREE.IcosahedronGeometry(0.3, 1), (m) => ball[Math.floor(((Math.atan2(m.z, m.x) + Math.PI) / (Math.PI * 2)) * 6) % 6]), vcMat(), -1.8, 0.3, 2.8);
-  obstacles.push({ x0: -2.1, x1: -1.5, z0: 2.5, z1: 3.1 });
+  const toys = [toy(g, painted(new THREE.IcosahedronGeometry(0.3, 1), (m) => ball[Math.floor(((Math.atan2(m.z, m.x) + Math.PI) / (Math.PI * 2)) * 6) % 6]), vcMat(), 0.3, -1.8, 2.8)];
 
   // sandcastle
   const cx = -4.5, cz = 0.8, sand = '#d9b874';
@@ -404,7 +418,7 @@ function beach() {
   const sky = lights(g, '#ffffff', '#e0c89a', 1.3, 2.4, [8, 14, 6]);
   Object.assign(sky, { outdoor: true, orb: orb(g, 3), stars: stars(g, R), orbDist: 65 });
   return {
-    group: g, obstacles, perches, bg: '#9ad7f5', fog: ['#9ad7f5', 30, 85], sky,
+    group: g, obstacles, perches, toys, bg: '#9ad7f5', fog: ['#9ad7f5', 30, 85], sky,
     bounds: { x0: -9, x1: 9, z0: -7.8, z1: 6 },
     cam: { pos: [0, 7, 14], target: [0, 0.5, 0] },
     update(t) {
