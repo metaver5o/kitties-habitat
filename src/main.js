@@ -116,12 +116,69 @@ function render(t) {
   camera.layers.set(0);
 }
 
+// --- time of day -----------------------------------------------------------
+// auto follows the viewer's local clock; cycle runs a whole day in 3 minutes.
+
+const TIME_MODES = ['auto', 'day', 'night', 'cycle'];
+const CYCLE_SECS = 180;
+let timeMode = TIME_MODES.includes(store.get('time')) ? store.get('time') : 'auto';
+let cycleStart = 0;
+
+const smooth = (a, b, x) => {
+  const k = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return k * k * (3 - 2 * k);
+};
+const daylightAt = (h) => smooth(5.5, 7.5, h) * (1 - smooth(18, 20, h));
+
+function hourNow(t) {
+  if (timeMode === 'day') return 13;
+  if (timeMode === 'night') return 1;
+  if (timeMode === 'cycle') return (7 + ((t - cycleStart) / CYCLE_SECS) * 24) % 24;
+  const d = new Date();
+  return d.getHours() + d.getMinutes() / 60;
+}
+
+const SKY = { night: new THREE.Color('#0b1026'), dusk: new THREE.Color('#f0905f') };
+const SUN = { noon: new THREE.Color('#ffffff'), dusk: new THREE.Color('#ffb070'), moon: new THREE.Color('#8fa6ff') };
+const ORB = { sun: new THREE.Color('#fff3b0'), moon: new THREE.Color('#e6ecff') };
+const GLASS_NIGHT = new THREE.Color('#1a2448');
+const tmp = new THREE.Color();
+
+// 3-stop ramp: night (d=0) -> dusk (d=0.5) -> day (d=1)
+const ramp = (out, night, dusk, day, d) =>
+  d < 0.5 ? out.copy(night).lerp(dusk, d * 2) : out.copy(dusk).lerp(day, (d - 0.5) * 2);
+
+function applyTime(hour) {
+  const env = world.env, s = env.sky;
+  const d = daylightAt(hour);
+  world.daylight = d;
+  const floor = s.outdoor ? 0.12 : 0.25; // moonlight vs. light leaking in from outside
+  s.hemi.intensity = s.hemiBase * (floor + (1 - floor) * d);
+  s.sun.intensity = s.sunBase * (floor + (1 - floor) * d);
+  ramp(s.sun.color, SUN.moon, SUN.dusk, SUN.noon, d);
+  for (const m of s.windows) m.color.copy(GLASS_NIGHT).lerp(m.userData.day, d);
+  for (const l of s.lamps) l.light.intensity = l.night + (l.day - l.night) * d;
+  if (!s.outdoor) return;
+
+  ramp(scene.background, SKY.night, SKY.dusk, tmp.set(env.bg), d);
+  scene.fog?.color.copy(scene.background);
+  s.stars.material.opacity = (1 - d) ** 2;
+  s.stars.visible = d < 0.95;
+  // sun arcs over 6h..19h, the moon over the rest of the night
+  const day = hour >= 6 && hour < 19;
+  const a = day ? ((hour - 6) / 13) * Math.PI : (((hour + 5) % 24) / 11) * Math.PI;
+  s.orb.position.set(-Math.cos(a) * s.orbDist, 4 + Math.sin(a) * s.orbDist * 0.45, -s.orbDist * 0.8);
+  s.orb.material.color.copy(day ? ORB.sun : ORB.moon);
+  s.sun.position.copy(s.orb.position).normalize().multiplyScalar(20);
+}
+
 // --- world -----------------------------------------------------------------
 
 const world = {
   env: null,
   kitties: [],
   meowCooldown: 0,
+  daylight: 1,
 
   randomSpot() {
     const { bounds: b, obstacles } = this.env;
@@ -212,9 +269,16 @@ for (const [key, s] of Object.entries(SCENES)) {
 function syncToggles() {
   $('#sound').textContent = audio.enabled ? 'Sound: on' : 'Sound: off';
   $('#names').textContent = labels.classList.contains('hide-names') ? 'Names: off' : 'Names: on';
+  $('#time').textContent = `Time: ${timeMode}`;
 }
 $('#sound').onclick = () => { audio.enabled = !audio.enabled; store.set('sound', audio.enabled ? '1' : '0'); syncToggles(); };
 $('#names').onclick = () => { labels.classList.toggle('hide-names'); syncToggles(); };
+$('#time').onclick = () => {
+  timeMode = TIME_MODES[(TIME_MODES.indexOf(timeMode) + 1) % TIME_MODES.length];
+  cycleStart = clock.elapsedTime;
+  store.set('time', timeMode);
+  syncToggles();
+};
 audio.enabled = store.get('sound') !== '0';
 syncToggles();
 
@@ -341,7 +405,8 @@ function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
   world.meowCooldown -= dt;
-  world.env.update?.(t, dt);
+  applyTime(hourNow(t));
+  world.env.update?.(t, dt, world.daylight);
   for (const k of world.kitties) k.update(dt, world);
   world.resolve();
   controls.update();

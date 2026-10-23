@@ -27,6 +27,7 @@ it walks around, sits, naps, gets the zoomies and meows with real cat voices.
 - **They behave like cats.** They wander, avoid furniture and each other, sit, curl up to sleep (`zZz`), hop, and get the occasional zoomies.
 - **Real meows.** Each kitty has its own set of real cat recordings and its own pitch. Click a kitty, or its card in the roster, to make it meow, or to wake it up.
 - **Four scenes.** Home, office, garden and beach, each with props the cats walk around (sofa, desks, a pond they won't step into, sandcastles).
+- **Day and night.** `Time: auto` follows your local clock: the sun and moon cross the sky, windows go dark, lamps come on, stars and garden fireflies come out, and kitties nap more at night. `day` / `night` pin it, `cycle` plays a whole day in 3 minutes.
 - **Cooldown decides quality.** Fast kitties render crisp and smooth. Slow ones turn chunky, pixelated, glitchy and sluggish (see [Cooldown settings](#cooldown-settings)).
 
 ## Cooldown settings
@@ -121,9 +122,9 @@ Production is GitHub Pages serving the `main` branch over HTTPS, with no CI buil
 | Path | What |
 |---|---|
 | `index.html` | Page, HUD, styles, import map (three.js from jsDelivr) |
-| `src/main.js` | Tiered renderer and glitch shader, wallet connection, world loop, collisions, labels |
+| `src/main.js` | Tiered renderer and glitch shader, time of day, wallet connection, world loop, collisions, labels |
 | `src/cat.js` | Trait → 3D model, cooldown profiles, and the walk / sit / sleep / hop / zoomies / meow behavior |
-| `src/scenes.js` | Home, office, garden and beach, plus their obstacles |
+| `src/scenes.js` | Home, office, garden and beach, plus their obstacles and day/night hooks (lights, windows, lamps, sun/moon, stars) |
 | `src/colors.js` | CryptoKitties color gene → hex |
 | `src/api.js` | CryptoKitties API client, palette sampling for fancy cats |
 | `src/audio.js` | Meow playback (WebAudio, per-cat clips, pitch and stereo pan) |
@@ -135,7 +136,6 @@ PRs welcome. Some things that would be fun:
 
 - Jumping onto furniture (sofa, desks, sandcastle)
 - Chasing the yarn ball and beach ball, and petting to purr
-- Day / night cycle
 - More fancy-cat accessories and more accurate color genes (the table in `src/colors.js` is partly approximate)
 
 ## Credits and legal

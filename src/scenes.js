@@ -1,18 +1,43 @@
 import * as THREE from 'three';
 import { rng, mat, vcMat, painted, put, B } from './util.js';
 
-// Each scene returns { group, bounds, obstacles, bg, fog, cam, update? }.
+// Each scene returns { group, bounds, obstacles, bg, fog, cam, sky, update? }.
 // Obstacles are floor AABBs {x0, x1, z0, z1} the cats walk around.
+// sky holds what the day/night cycle drives: lights and their daytime
+// intensities, window glass, lamps, the sun/moon disc and stars.
 
 const C = (hex) => new THREE.Color(hex);
 const glow = (hex) => new THREE.MeshBasicMaterial({ color: hex });
 
 function lights(g, sky, ground, hemi, sun, sunPos) {
-  g.add(new THREE.HemisphereLight(sky, ground, hemi));
+  const h = new THREE.HemisphereLight(sky, ground, hemi);
   const d = new THREE.DirectionalLight(0xffffff, sun);
   d.position.set(...sunPos);
-  g.add(d);
+  g.add(h, d);
+  return { hemi: h, sun: d, hemiBase: hemi, sunBase: sun, windows: [], lamps: [] };
 }
+
+// window glass that goes dark at night (MeshBasic, so lighting can't do it)
+function glass(day) {
+  const m = glow(day);
+  m.userData.day = C(day);
+  return m;
+}
+
+function stars(g, R) {
+  const pts = [];
+  for (let i = 0; i < 400; i++) {
+    const a = R() * Math.PI * 2, up = 0.08 + R() * 0.9;
+    pts.push(Math.cos(a) * Math.cos(up) * 90, Math.sin(up) * 90, Math.sin(a) * Math.cos(up) * 90);
+  }
+  const geo = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  const p = new THREE.Points(geo, new THREE.PointsMaterial({ color: '#ffffff', size: 2, sizeAttenuation: false, transparent: true, fog: false }));
+  g.add(p);
+  return p;
+}
+
+// one disc that is the sun by day and the moon by night
+const orb = (g, r) => put(g, new THREE.SphereGeometry(r, 8, 6), new THREE.MeshBasicMaterial({ color: '#fff3b0', fog: false }));
 
 function plant(g, x, z, pot = '#d9774a') {
   put(g, new THREE.CylinderGeometry(0.35, 0.27, 0.6, 6), pot, x, 0.3, z);
@@ -40,7 +65,8 @@ function home() {
 
   // window
   put(g, B(2.7, 2.1, 0.1), '#ffffff', 2.5, 2.9, -D / 2 + 0.02);
-  put(g, B(2.4, 1.8, 0.05), glow('#bfe6ff'), 2.5, 2.9, -D / 2 + 0.06);
+  const pane = glass('#bfe6ff');
+  put(g, B(2.4, 1.8, 0.05), pane, 2.5, 2.9, -D / 2 + 0.06);
   put(g, B(0.08, 1.8, 0.06), '#ffffff', 2.5, 2.9, -D / 2 + 0.09);
   put(g, B(2.4, 0.08, 0.06), '#ffffff', 2.5, 2.9, -D / 2 + 0.09);
   // picture on left wall
@@ -98,9 +124,11 @@ function home() {
   put(g, new THREE.IcosahedronGeometry(0.16, 1), '#e0457b', -2.2, 0.16, 2.2);
   put(g, new THREE.CylinderGeometry(0.22, 0.17, 0.12, 8), '#5b8def', 5, 0.06, 3.4);
 
-  lights(g, '#fff4e0', '#8a6a4a', 1.4, 1.8, [3, 8, 6]);
+  const sky = lights(g, '#fff4e0', '#8a6a4a', 1.4, 1.8, [3, 8, 6]);
+  sky.windows.push(pane);
+  sky.lamps.push({ light: lamp, day: 4, night: 14 });
   return {
-    group: g, obstacles, bg: '#2a2230', fog: null,
+    group: g, obstacles, bg: '#2a2230', fog: null, sky,
     bounds: { x0: -5.6, x1: 5.6, z0: -4.2, z1: 4.2 },
     cam: { pos: [0, 6.5, 10.5], target: [0, 0.6, 0] },
   };
@@ -115,9 +143,21 @@ function office() {
   put(g, B(W + 16, 5, 0.2), '#d9dde3', 8, 2.5, -D / 2 - 0.1);
   put(g, B(0.2, 5, D), '#cfd5dc', -W / 2 - 0.1, 2.5, 0);
   put(g, B(W + 16, 0.15, 0.25), '#8a94a3', 8, 0.075, -D / 2 - 0.05);
+  const pane = glass('#a9d8ff');
   for (const x of [-3.5, 0.5, 4.5]) {
     put(g, B(2.1, 1.8, 0.1), '#3d4554', x, 2.7, -D / 2 + 0.02);
-    put(g, B(1.9, 1.6, 0.05), glow('#a9d8ff'), x, 2.7, -D / 2 + 0.06);
+    put(g, B(1.9, 1.6, 0.05), pane, x, 2.7, -D / 2 + 0.06);
+  }
+  // pendant lights: barely noticeable by day, the main light at night
+  const lamps = [];
+  for (const x of [-3.5, 0.5, 4.5]) {
+    put(g, B(0.02, 1.4, 0.02), '#333333', x, 4.3, -2.6);
+    put(g, B(1.4, 0.08, 0.35), '#333333', x, 3.6, -2.6);
+    put(g, B(1.3, 0.02, 0.28), glow('#f4f8ff'), x, 3.55, -2.6);
+    const l = new THREE.PointLight('#e8f0ff', 1, 10, 1);
+    l.position.set(x, 3.3, -2);
+    g.add(l);
+    lamps.push({ light: l, day: 1, night: 9 });
   }
   // whiteboard
   put(g, B(0.06, 1.3, 2.6), '#8a94a3', -W / 2 + 0.03, 2.1, 0.5);
@@ -160,9 +200,11 @@ function office() {
     put(g, B(0.9, 0.4, 0.03), kraft, bx, 0.2, bz + s * 0.35);
   }
 
-  lights(g, '#ffffff', '#556070', 1.3, 1.6, [-4, 9, 5]);
+  const sky = lights(g, '#ffffff', '#556070', 1.3, 1.6, [-4, 9, 5]);
+  sky.windows.push(pane);
+  sky.lamps.push(...lamps);
   return {
-    group: g, obstacles, bg: '#1e2430', fog: null,
+    group: g, obstacles, bg: '#1e2430', fog: null, sky,
     bounds: { x0: -6.4, x1: 6.4, z0: -4.6, z1: 4.6 },
     cam: { pos: [0, 7, 11.5], target: [0, 0.6, 0] },
   };
@@ -224,7 +266,15 @@ function garden() {
     put(g, new THREE.IcosahedronGeometry(0.06, 0), petals[i % 5], x, 0.27, z);
   }
 
-  put(g, new THREE.SphereGeometry(2.5, 8, 6), glow('#fff3b0'), -22, 20, -40);
+  // fireflies come out after dusk
+  const flies = [];
+  for (let i = 0; i < 18; i++) {
+    const f = put(g, new THREE.IcosahedronGeometry(0.05, 0), new THREE.MeshBasicMaterial({ color: '#e6ff7a', transparent: true }),
+      (R() - 0.5) * 16, 0.4 + R() * 1.2, (R() - 0.5) * 12);
+    f.userData.home = f.position.clone();
+    f.userData.seed = R() * 100;
+    flies.push(f);
+  }
   const clouds = new THREE.Group();
   for (let i = 0; i < 6; i++) {
     const c = new THREE.Group();
@@ -234,15 +284,23 @@ function garden() {
   }
   g.add(clouds);
 
-  lights(g, '#cfeaff', '#4a7a35', 1.3, 2.2, [-10, 15, 8]);
+  const sky = lights(g, '#cfeaff', '#4a7a35', 1.3, 2.2, [-10, 15, 8]);
+  Object.assign(sky, { outdoor: true, orb: orb(g, 2.5), stars: stars(g, R), orbDist: 50 });
   return {
-    group: g, obstacles, bg: '#8fd0ff', fog: ['#8fd0ff', 28, 70],
+    group: g, obstacles, bg: '#8fd0ff', fog: ['#8fd0ff', 28, 70], sky,
     bounds: { x0: -9, x1: 9, z0: -7.3, z1: 7 },
     cam: { pos: [0, 8, 15], target: [0, 0.5, 0] },
-    update(t, dt) {
+    update(t, dt, daylight) {
       for (const c of clouds.children) {
         c.position.x += dt * 0.4;
         if (c.position.x > 36) c.position.x = -36;
+      }
+      const dark = Math.max(0, 1 - daylight * 2.5);
+      for (const f of flies) {
+        const { home, seed } = f.userData;
+        f.visible = dark > 0;
+        f.position.set(home.x + Math.sin(t * 0.4 + seed) * 0.8, home.y + Math.sin(t * 0.9 + seed * 2) * 0.3, home.z + Math.cos(t * 0.3 + seed) * 0.8);
+        f.material.opacity = dark * (0.5 + 0.5 * Math.sin(t * 3 + seed * 7));
       }
     },
   };
@@ -306,11 +364,10 @@ function beach() {
     const s = put(g, new THREE.ConeGeometry(0.16, 0.03, 5), '#ff8a5c', (R() - 0.5) * 16, 0.02, (R() - 0.5) * 12);
     s.rotation.y = R() * 6;
   }
-  put(g, new THREE.SphereGeometry(3, 8, 6), glow('#fff3b0'), 20, 14, -60);
-
-  lights(g, '#ffffff', '#e0c89a', 1.3, 2.4, [8, 14, 6]);
+  const sky = lights(g, '#ffffff', '#e0c89a', 1.3, 2.4, [8, 14, 6]);
+  Object.assign(sky, { outdoor: true, orb: orb(g, 3), stars: stars(g, R), orbDist: 65 });
   return {
-    group: g, obstacles, bg: '#9ad7f5', fog: ['#9ad7f5', 30, 85],
+    group: g, obstacles, bg: '#9ad7f5', fog: ['#9ad7f5', 30, 85], sky,
     bounds: { x0: -9, x1: 9, z0: -7.8, z1: 6 },
     cam: { pos: [0, 7, 14], target: [0, 0.5, 0] },
     update(t) {

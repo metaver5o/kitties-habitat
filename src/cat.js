@@ -349,6 +349,7 @@ export class Kitty {
   nextState(world) {
     const r = Math.random();
     if (this.state === 'sleep') return this.enter(r < 0.6 ? 'sit' : 'idle', world);
+    if (Math.random() < 0.4 * (1 - world.daylight)) return this.enter('sleep', world); // night: more naps
     if (r < 0.42) return this.enter('walk', world);
     if (r < 0.62) return this.enter('sit', world);
     if (r < 0.75) return this.enter('idle', world);
